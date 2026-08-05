@@ -1,0 +1,245 @@
+# %% package
+import os
+
+import numpy as np
+import polars as pl
+
+os.chdir("/Users/daltonlowery/Desktop/projects/OptimalPitch/data")
+
+# %% load df
+cols_to_remove = [
+    "",
+    "spin_rate_deprecated",
+    "des",
+    "break_angle_deprecated",
+    "break_length_deprecated",
+    "spin_dir",
+    "hit_location",
+    "game_type",
+    "on_3b",
+    "on_2b",
+    "on_1b",
+    "outs_when_up",
+    "inning_topbot",
+    "tfs_deprecated",
+    "tfs_zulu_deprecated",
+    "umpire",
+    "fielder_2",
+    "fielder_2",
+    "fielder_3",
+    "fielder_4",
+    "fielder_5",
+    "fielder_6",
+    "fielder_7",
+    "fielder_8",
+    "fielder_9",
+    "home_score",
+    "away_score",
+    "bat_score",
+    "fld_score",
+    "post_away_score",
+    "post_home_score",
+    "sv_id",
+    "post_bat_score",
+    "post_fld_score",
+    "home_score_diff",
+    "bat_score_diff",
+    "age_pit_legacy",
+    "home_win_exp",
+    "woba_denom",
+    "if_fielding_alignment",
+    "babip_value",
+    "launch_speed_angle",
+    "iso_value",
+    "of_fielding_alignment",
+    "delta_home_win_exp",
+    "bat_win_exp",
+    "age_pit_legacy",
+    "age_bat_legacy",
+    "hyper_speed",
+    "age_pit",
+    "age_bat",
+    "pitcher_days_since_prev_game",
+    "batter_days_since_prev_game",
+    "pitcher_days_until_next_game",
+    "batter_days_until_next_game",
+    "delta_pitcher_run_exp",
+]
+
+unclean = (
+    pl.scan_csv("raw_data/pitch_2015_2026.csv")
+    .filter(pl.col("game_type") == "R")
+    .select(pl.exclude(cols_to_remove))
+    .with_columns(
+        pl.concat_str(pl.col("balls"), pl.col("strikes"), separator="-").alias("count")
+    )
+    .rename(
+        {
+            "batter": "batter_id",
+            "pitcher": "pitcher_id",
+            "player_name": "pitcher_name",
+            "release_pos_z": "release_height",
+            "release_pos_x": "release_x",
+            "stand": "b_stand",
+            "estimated_woba_using_speedangle": "xwoba",
+            "intercept_ball_minus_batter_pos_x_inches": "intercept_x",
+            "intercept_ball_minus_batter_pos_y_inches": "intercept_y",
+        }
+    )
+).collect(engine="streaming")
+
+# %% abs strike, batter name, pitcher postion (fangraphs merge)
+bat_names = (
+    pl.scan_csv("raw_data/constants/batter_names.csv")
+    .rename({"last_name, first_name": "batter_name"})
+    .select(pl.exclude("year"))
+    .unique()
+).collect(engine="streaming")
+
+# add batter names
+unclean = unclean.join(bat_names, left_on="batter_id", right_on="player_id", how="left")
+
+# abs ball strike
+unclean = unclean.with_columns(
+    (
+        pl.col("plate_z").is_between(pl.col("sz_bot"), pl.col("sz_top"))
+        & pl.col("plate_x").is_between(-0.7083, 0.7083)
+    ).alias("abs_strike")
+)
+
+# names at start
+start = ["game_date", "pitcher_name", "pitcher_id", "batter_name", "batter_id"]
+unclean = unclean.select(
+    pl.col(start),
+    pl.exclude(start),  # get rest of cols
+)
+
+# group of pitches
+pitch_groups = {
+    "fastball": {"4-Seam Fastball"},
+    "sinker": {"Sinker"},
+    "cutter": {"Cutter"},
+    "curve": {"Knuckle Curve", "Screwball", "Slow Curve", "Curveball"},
+    "slider": {"Slider", "Slurve"},
+    "sweeper": {"Sweeper"},
+    "offspeed": {"Changeup"},
+    "split": {"Split-Finger", "Forkball"},
+    "others": {
+        "Other",
+        "Unknown",
+        "None",
+        "Knuckleball",
+        "Eephus",
+        "Intentional Ball",
+        "Pitch Out",
+    },
+}
+pitch_to_group = {
+    pitch: group for group, pitches in pitch_groups.items() for pitch in pitches
+}
+unclean = unclean.with_columns(
+    pitch_group=pl.col("pitch_name").replace_strict(pitch_to_group, default="others")
+)
+des = unclean["description"].unique()
+
+unclean = unclean.with_columns(
+    atBatNumber=pl.col("at_bat_number")
+    .rank("dense")
+    .over(["game_pk", "pitcher_id", "batter_id"]),
+    pitchBatter=pl.struct(["game_pk", "pitcher_id", "batter_id"]).rank("dense"),
+    countArr=pl.col("count").str.split("-").list.get(0).cast(pl.Int32) * 3
+    + pl.col("count").str.split("-").list.get(1).cast(pl.Int32),
+    swing=pl.col("description").is_in(
+        [
+            "hit_into_play",
+            "foul",
+            "foul_bunt",
+            "foul_pitchout",
+            "swinging_pitchout",
+            "missed_bunt",
+            "swinging_strike",
+            "foul_tip",
+            "swinging_strike_blocked",
+            "bunt_foul_tip",
+        ]
+    ),
+    foul=pl.col("description").is_in(
+        ["foul_tip", "foul", "foul_bunt", "foul_pitchout", "bunt_foul_tip"]
+    ),
+    whiff=pl.col("description").is_in(
+        [
+            "swinging_strike_blocked",
+            "swinging_pitchout",
+            "swinging_strike",
+            "missed_bunt",
+        ]
+    ),
+    bipArr=pl.concat_list(
+        (pl.col("bb_type") == "fly_ball"),
+        (pl.col("bb_type") == "ground_ball"),
+        (pl.col("bb_type") == "line_drive"),
+        (pl.col("bb_type") == "popup"),
+        (pl.col("bb_type").is_null()),
+    ),
+)
+
+# vaa
+vy_f = -(pl.col("vy0").pow(2) - (2 * pl.col("ay") * (50 - (17 / 12)))).sqrt()
+t = (vy_f - pl.col("vy0")) / pl.col("ay")
+vz_f = pl.col("vz0") + (pl.col("az") * t)
+unclean = unclean.with_columns(vaa=-(vz_f / vy_f).arctan() * (180 / np.pi))
+
+# haa
+vx_f = pl.col("vx0") + pl.col("az") * t
+unclean = unclean.with_columns(haa=-(vx_f / vy_f).arctan() * (180 / np.pi))
+
+
+# based on m_rosen kirby index release angles
+def calculate_VRA(vy0, ay, release_extension, vz0, az):
+    d_release = 60.5 - release_extension - 50
+    vy_s = -((vy0**2 + 2 * ay * d_release).sqrt())
+    t_s = (vy0 - vy_s) / ay
+    vz_s = vz0 - az * t_s
+    VRA = -(vz_s / vy_s).arctan() * (180 / np.pi)
+    return VRA
+
+
+def calculate_HRA(vy0, ay, release_extension, vx0, ax):
+    d_release = 60.5 - release_extension - 50
+    vy_s = -((vy0**2 + 2 * ay * d_release).sqrt())
+    t_s = (vy0 - vy_s) / ay
+    vx_s = vx0 - ax * t_s
+    HRA = -(vx_s / vy_s).arctan() * (180 / np.pi)
+    return HRA
+
+
+# hra and vra for each unclean
+unclean = unclean.with_columns(
+    pl.col("release_extension").fill_null(pl.col("release_extension").mean())
+)
+unclean = unclean.with_columns(
+    calculate_VRA(
+        pl.col("vy0"),
+        pl.col("ay"),
+        pl.col("release_extension"),
+        pl.col("vz0"),
+        pl.col("az"),
+    ).alias("vra"),
+    calculate_HRA(
+        pl.col("vy0"),
+        pl.col("ay"),
+        pl.col("release_extension"),
+        pl.col("vx0"),
+        pl.col("ax"),
+    ).alias("hra"),
+)
+
+# ivb
+unclean = unclean.rename({"pfx_z": "ivb"})
+# ihb
+unclean = unclean.rename({"pfx_x": "ihb"})
+# arm angle nas
+unclean = unclean.with_columns(pl.col("arm_angle").cast(pl.Float32))
+
+# %% clean csv
+unclean.write_parquet("cleaned_data/pitch_2015_2026.parquet")

@@ -1,0 +1,12 @@
+/data
+/docs
+/opti
+/tests
+*.pyc
+AGENTS.md
+/weights
+.opencode
+.venv
+*.md
+*.lock
+*.json
