@@ -46,7 +46,7 @@ class RoPE(nn.Module):
             nn.SiLU(),
             nn.Linear(self.dim * 4, self.dim),
         )
-        tag(self.fnn[3], no_muon=True) 
+        tag(self.ffn[3], no_muon=True) 
 
         # residual dropout
         self.resid_drop = nn.Dropout(dropout)

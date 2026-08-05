@@ -52,7 +52,7 @@ class Transformer(nn.Module):
         self.expectation_proj = nn.Linear(exp_dim, exp_proj_dim)
 
         # batter and pitcher
-        self.pitcher = nn.Embedding(n_pitcher_seasons, pitcher_dim)
+        self.pitcher = nn.Embedding(n_pitcher_seasons, embed_dim)
         self.batter = nn.Embedding(n_batter_seasons, batter_dim)
 
         # context embeddings

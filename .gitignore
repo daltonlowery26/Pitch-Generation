@@ -1,7 +1,6 @@
 /data
 /docs
 /opti
-/tests
 *.pyc
 AGENTS.md
 /weights

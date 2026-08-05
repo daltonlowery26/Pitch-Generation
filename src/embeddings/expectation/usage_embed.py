@@ -40,6 +40,7 @@ def forwardLoss(model, batch, repMask, i1, aux_h, aux_w, h1_w, aux=True):
         batch["count"],
         batch["pitcherID"],
         batch["batterID"],
+        repMask,
         batch["lengths"],
     )
 
@@ -230,7 +231,7 @@ if __name__ == "__main__":
         horizons=(1, 2, 3, 4),
         pitcher_dim=24,
         batter_dim=24,
-        embed_dim=4,
+        embed_dim=10,
         batter_seasons=batters,
         pitcher_seasons=pitchers,
     )

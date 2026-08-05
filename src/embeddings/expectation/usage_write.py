@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from src.embeddings.expectation.modules.data import UsageDataset, collate_fn
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward, repertoire_mask
-from src.embeddings.expectation.usage import loadBatch
+from src.embeddings.expectation.usage_embed import loadBatch
 
 device = "cuda"
 
