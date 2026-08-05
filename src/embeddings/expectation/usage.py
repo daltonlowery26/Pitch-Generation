@@ -1,4 +1,4 @@
-# %% batter expectation of pitch in different counts
+# batter expectation of pitch in different counts
 from datetime import datetime
 
 import numpy as np
@@ -6,18 +6,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, f1_score, log_loss, roc_auc_score
-from src.pitch_value.event_prob.transformer.modules.utils import (
-    create_optimizers,
-    create_training_optimizers,
-)
+from src.utils.modeling.opti import make_optimizers
 from torch.utils.data import DataLoader
 
 from src.embeddings.expectation.modules.data import collate_fn, load_usage_data
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import (
-    get,
     inferForward,
-    lr_range_test,
     multistep_loss,
 )
 
@@ -152,9 +147,7 @@ def usageTrain(
 
 
 def usageTest(model, test_loader, repMask, device=device):
-    _, _, preds, labels = get(
-        model, loadBatch, inferForward, test_loader, repMask, device
-    )
+    _, _, preds, labels = get(model, loadBatch, inferForward, test_loader, repMask, device)
     y = labels
     yhat = preds.argmax(axis=1)
     C = model.out_dim
@@ -170,7 +163,6 @@ def usageTest(model, test_loader, repMask, device=device):
     }
 
 
-# %% groups
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
     batch_size = 4096
@@ -194,7 +186,7 @@ if __name__ == "__main__":
     )
     mask = data.mask.to(device)
 
-    # %% data loaders
+    # data loaders
     train_loader = DataLoader(
         data.train_set,
         batch_size=batch_size,
@@ -225,7 +217,7 @@ if __name__ == "__main__":
         collate_fn=collate_fn,
     )
 
-    # %% model set up
+    # model set up
     loss_fn = nn.CrossEntropyLoss()
 
     model = BatterExp(
@@ -245,35 +237,20 @@ if __name__ == "__main__":
     model.to(device)
     print(sum(p.numel() for p in model.parameters() if p.requires_grad))
 
-    muon_opti, adamw_opti = create_optimizers(model)
-    opti_lrs, opti_losses = lr_range_test(
-        model=model,
-        _forwardpass=forwardLoss,
-        _loadbatch=loadBatch,
-        loader=train_loader,
-        muon_opti=muon_opti,
-        adamw_opti=adamw_opti,
-        rep_mask=mask,
-        device=device,
-    )
-    max_lr = opti_lrs[opti_losses.index(min(opti_losses))] / 10
-    print(f"Min loss: {min(opti_losses):.6f} at LR: {max_lr * 10:.2e}")
-
-    # %% one cycle
+    # one cycle
     total_steps = len(train_loader) * epochs
-    muon_opti, adamw_opti, muon_sched, adamw_sched = create_training_optimizers(
+    muon_opti, adamw_opti, muon_sched, adamw_sched = make_optimizers(
         model,
-        lr=max_lr,
+        lr=0.05,
         weight_decay=0.1,
-        max_lr=max_lr,
         total_steps=total_steps,
-        pct_start=15 / epochs,
+        pct_start= 1100 / total_steps,
         anneal_strategy="cos",
         div_factor=100,
         final_div_factor=1e2,
     )
 
-    # %% train loop
+    # train loop
     h1_w = 0.3
     aux_w = (0.25, 0.25, 0.2)
 
@@ -291,7 +268,7 @@ if __name__ == "__main__":
         aux_w=aux_w,
     )
 
-    # %% test, on the best val checkpoint rather than the final epoch
+    # test, on the best val checkpoint rather than the final epoch
     ckpt = torch.load(WEIGHTS, map_location=device)
     model.load_state_dict(ckpt["model_state"])
     print(f"testing epoch {ckpt['epoch']} weights", flush=True)

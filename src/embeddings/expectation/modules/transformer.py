@@ -1,101 +1,9 @@
 # %% batter expectation of pitch in different counts
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-
-# RoPE block
-class RoPEAttentionBlock(nn.Module):
-    def __init__(self, dim, nhead, dropout, max_seq_len, rope_base=5000.0):
-        super().__init__()
-        assert dim % nhead == 0, f"dim ({dim}) must be divisible by nhead ({nhead})"
-        head_dim = dim // nhead
-        assert head_dim % 2 == 0, (
-            f"head_dim ({head_dim}) must be even for LLaMA-style RoPE"
-        )
-
-        self.dim = dim
-        self.nhead = nhead
-        self.head_dim = head_dim
-        self.dropout = dropout
-
-        # qkv projection
-        self.qkv = nn.Linear(dim, 3 * dim, bias=False)
-
-        # norms
-        self.in_norm = nn.RMSNorm(dim, elementwise_affine=False)
-        self.q_norm = nn.RMSNorm(head_dim, elementwise_affine=False)
-        self.k_norm = nn.RMSNorm(head_dim, elementwise_affine=False)
-
-        # precompute cos and sin cache
-        inv_freq = 1.0 / (
-            rope_base ** (torch.arange(0, head_dim, 2).float() / head_dim)
-        )
-        t = torch.arange(max_seq_len, dtype=torch.float32)
-        freqs = torch.outer(t, inv_freq)
-        self.register_buffer("rope_cos", freqs.cos(), persistent=False)
-        self.register_buffer("rope_sin", freqs.sin(), persistent=False)
-
-        # attn proj
-        self.attn_proj = nn.Linear(dim, dim)
-
-        # ffn
-        self.ffn = nn.Sequential(
-            nn.RMSNorm(self.dim, elementwise_affine=False),
-            nn.Linear(self.dim, self.dim * 4),
-            nn.SiLU(),
-            nn.Linear(self.dim * 4, self.dim),
-        )
-
-        # residual dropout
-        self.resid_drop = nn.Dropout(dropout)
-
-    def _apply_rope(self, x, positions):
-        cos = self.rope_cos[positions].unsqueeze(1).to(x.dtype)  # ty:ignore
-        sin = self.rope_sin[positions].unsqueeze(1).to(x.dtype)  # ty:ignore
-        x1, x2 = x.chunk(2, dim=-1)
-        return torch.cat([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
-
-    def forward(self, x, attn_mask, positions):
-        B, T, _ = x.shape
-        h = self.in_norm(x)
-
-        qkv = (
-            self.qkv(h)
-            .reshape(B, T, 3, self.nhead, self.head_dim)
-            .permute(2, 0, 3, 1, 4)
-        )
-        q, k, v = qkv[0], qkv[1], qkv[2]
-
-        q = self.q_norm(q)
-        k = self.k_norm(k)
-
-        q = self._apply_rope(q, positions)
-        k = self._apply_rope(k, positions)
-
-        out = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=attn_mask,
-            dropout_p=self.dropout if self.training else 0.0,
-            is_causal=False,
-        )
-        attn = out.transpose(1, 2).reshape(B, T, self.dim)
-
-        x = x + self.resid_drop(self.attn_proj(attn))
-        x = x + self.resid_drop(self.ffn(attn))
-        return x
-
-
-class PlayerEmbeddings(nn.Module):
-    def __init__(self, n_players, embed_dim):
-        super().__init__()
-        self.player_embed = nn.Embedding(n_players, embed_dim)
-
-    def forward(self, player_id):
-        return self.player_embed(player_id)
-
+from src.utils.modeling.rope import RoPE
+from src.utils.modeling.opti import tag
 
 # helper functions for transformer
 class FiLM(nn.Module):
@@ -134,7 +42,7 @@ class BatterExp(nn.Module):
         self.pitcherDim = pitcher_dim
         self.batterDim = batter_dim
         self.horizonDim = 8
-        self.abDim = 2
+        self.abDim = 4
         self.countDim = 4
         self.horizons = tuple(horizons)
         self.horizonEmb = nn.Embedding(len(self.horizons), self.horizonDim)
@@ -144,12 +52,8 @@ class BatterExp(nn.Module):
         self.out_dim = out_dim
 
         # pretrained
-        self.pitcher_embed = PlayerEmbeddings(
-            n_players=pitcher_seasons, embed_dim=self.pitcherDim
-        )
-        self.batter_embed = PlayerEmbeddings(
-            n_players=batter_seasons, embed_dim=self.batterDim
-        )
+        self.pitcher_embed = nn.Embedding(num_embeddings=pitcher_seasons, embedding_dim=self.pitcherDim)
+        self.batter_embed = nn.Embedding(num_embeddings=batter_seasons, embedding_dim=self.batterDim)
 
         # pitcher project
         self.pitcher_proj = nn.Sequential(
@@ -158,8 +62,8 @@ class BatterExp(nn.Module):
         )
 
         # ab number
-        self.abEmb = nn.Embedding(num_embeddings=6, embedding_dim=self.abDim)
-        self.count_emb = nn.Embedding(20, self.countDim)
+        self.abEmb = nn.Embedding(num_embeddings=8, embedding_dim=self.abDim)
+        self.count_emb = nn.Embedding(num_embeddings=16, embedding_dim=self.countDim)
 
         # learned pitcher projection for first pitch
         prior = self.pitcherDim + self.batterDim
@@ -184,7 +88,7 @@ class BatterExp(nn.Module):
         # transformer with RoPE + flash attention
         self.transformer = nn.ModuleList(
             [
-                RoPEAttentionBlock(
+                RoPE(
                     dim=dim,
                     nhead=nheads,
                     dropout=dropout,
@@ -209,6 +113,7 @@ class BatterExp(nn.Module):
             nn.SiLU(),
             nn.Linear(dim * 4, out_dim),
         )
+        tag(self)
 
     # first pitch of atbat
     def get_prior(self, pitcherIds, batterIds, repMask):
@@ -231,6 +136,7 @@ class BatterExp(nn.Module):
         count,
         pitcherID,
         batterID,
+        repMask,
         lengths,
     ):
         B, T, _ = embed.shape
@@ -257,14 +163,9 @@ class BatterExp(nn.Module):
         # per-batch real positions 0..T-1
         positions = torch.arange(Tp, device=embed.device).unsqueeze(0).expand(B, -1)
 
-        # causal and padding masks, True == attend
-        causal = ~torch.triu(
-            torch.ones(Tp, Tp, device=embed.device, dtype=torch.bool), diagonal=1
-        )
-        # L + 1 real tokens per sequence once the pitcher token is prepended
-        key_valid = torch.arange(Tp, device=embed.device).unsqueeze(0) < (
-            lengths + 1
-        ).unsqueeze(1)
+        # causal and padding masks, true means attend
+        causal = ~torch.triu(torch.ones(Tp, Tp, device=embed.device, dtype=torch.bool), diagonal=1)
+        key_valid = torch.arange(Tp, device=embed.device).unsqueeze(0) < (lengths + 1).unsqueeze(1)
         attn_mask = causal[None, None] & key_valid[:, None, None, :]
 
         # pass through transformer blocks
@@ -280,11 +181,15 @@ class BatterExp(nn.Module):
         hemb = self.horizonEmb(hidx)
 
         # loop through outputs, add logits
+        pitch_mask = repMask[pitcherID]  
         logits = []
+        
         for i in range(len(self.horizons)):
             h = hemb[i].view(1, 1, -1).expand(B, T, -1)
             feat = torch.cat([embed, batter_embed, h], dim=-1)
             logits.append(self.out(feat))
 
-        logits = torch.stack(logits, dim=1)
+        logits = torch.stack(logits, dim=1) 
+        # mask out impossible pitches for a given pitcher       
+        logits = logits.masked_fill(~pitch_mask.unsqueeze(1), -1e9) 
         return logits, embed

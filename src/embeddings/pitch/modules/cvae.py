@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from src.utils.modeling.opti import tag
 
 # recon loss and kl loss
 def cvae_loss(recon, x, mu_q, logvar_q, loss_fn, beta=1.0):
@@ -36,6 +37,7 @@ class FiLM(nn.Module):
         self.norm = nn.RMSNorm(dim)
         self.film = nn.Linear(cond_dim, 2 * dim)
         self.act = nn.SiLU()
+
         nn.init.zeros_(self.film.weight)
         nn.init.zeros_(self.film.bias)
 
@@ -65,29 +67,33 @@ class CVAE(nn.Module):
         super().__init__()
         # shared conditioning
         self.pitcherEmbed = nn.Embedding(num_embeddings=n_pitchers, embedding_dim=pitcher_dim)
-        torch.nn.init.constant_(self.pitcherEmbed.weight, 0.0)
         self.pitchEmbed = nn.Embedding(num_embeddings=n_pitches, embedding_dim=pitch_dim)
 
+        torch.nn.init.constant_(self.pitcherEmbed.weight, 0.0)
+        torch.nn.init.constant_(self.pitcherEmbed.weight, 0.0)
+        
         # condtioning modulation
         self.cond_proj = nn.Linear(pitcher_dim + pitch_dim, h_dim)
-
+        
         # encoder  q(z | x)
         self.in_norm = nn.RMSNorm(input_dim)
         self.input = nn.Linear(input_dim, h_dim)
+
         self.encoder = nn.ModuleList(
             [FeedForward(h_dim, dropout) for _ in range(n_layers)]
         )
         self.mu = nn.Linear(h_dim, latent_dim)
         self.sigma = nn.Linear(h_dim, latent_dim)
 
+        tag(self.mu, no_muon=True)
+        tag(self.sigma, no_muon=True)
+
         # decoder  p(x | z, c)
         self.dinput = nn.Linear(latent_dim, h_dim)
-
-        # modulation of x based on c
         self.decoder = nn.ModuleList([FiLM(h_dim, h_dim) for _ in range(n_layers)])
-
-        # out projection
         self.out = nn.Linear(h_dim, input_dim)
+
+        tag(self.out, no_muon=True)
 
     def encode(self, x):
         # input normalization

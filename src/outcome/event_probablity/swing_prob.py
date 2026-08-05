@@ -3,15 +3,12 @@ import polars as pl
 import torch
 import torch.nn as nn
 from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
-from src.pitch_value.event_prob.transformer.modules.data import (
+from src.outcome.modules.data import (
     OutcomeProb,
     split_loaders,
 )
-from src.pitch_value.event_prob.transformer.modules.transformer import Transformer
-from src.pitch_value.event_prob.transformer.modules.utils import (
-    create_training_optimizers,
-    lr_range_test_transf,
-)
+from src.outcome.modules.transformer import Transformer
+from src.utils.modeling.opti import make_optimizers
 
 device = "cuda"
 
@@ -113,45 +110,39 @@ if __name__ == "__main__":
 
     # preprocessing steps
     df = pl.read_parquet("data/player/expectation.parquet")
-    df = df.with_columns(
-        pitcher_year=pl.struct(["pitcher_id", "game_year"]).rank("dense") - 1,
-        batter_year=pl.struct(["batter_id", "game_year"]).rank("dense") - 1,
-    )
 
     # number of pitchers, batters, len
     pitchers = df["pitcher_year"].n_unique()
     batters = df["batter_year"].n_unique()
     pitches = df["pitch_group"].n_unique()
 
-    data, train_loader, val_loader, test_loader = load_data(
-        df, prefetch=4, workers=4, batch_size=4096
-    )
+    data, train_loader, val_loader, test_loader = load_data(df, prefetch=4, workers=4, batch_size=4096)
 
     loss_fn = nn.BCEWithLogitsLoss()
     model = Transformer(
         dim=128,
-        layers=6,
+        layers=4,
         dropout=0.1,
         nhead=4,
-        output_dim=1,
+        
+        embed_dim=10,
         countdim=4,
-        abdim=4,
-        embed_dim=64,
         exp_dim=4,
-        exp_proj_dim=24,
-        pitcher_dim=64,
-        batter_dim=64,
+        abdim=4,
+        output_dim=1,
+        
+        exp_proj_dim=16,
+        pitcher_dim=24,
+        batter_dim=24,
         n_pitcher_seasons=pitchers,
         n_batter_seasons=batters,
     )
-    max_lr = lr_range_test_transf(model, train_loader, loss_fn, forward, device)
-
+    
     total_steps = len(train_loader) * epochs
-    muon_opti, adamw_opti, muon_sched, adamw_sched = create_training_optimizers(
+    muon_opti, adamw_opti, muon_sched, adamw_sched = make_optimizers(
         model,
-        lr=max_lr,
+        lr=0.005,
         weight_decay=0.1,
-        max_lr=max_lr,
         total_steps=total_steps,
         pct_start=1100 / total_steps,
     )

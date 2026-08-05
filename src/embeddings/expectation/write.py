@@ -4,11 +4,7 @@ import polars as pl
 import torch
 from torch.utils.data import DataLoader
 
-from src.embeddings.expectation.modules.data import (
-    UsageDataset,
-    collate_fn,
-    pitch_group,
-)
+from src.embeddings.expectation.modules.data import UsageDataset, collate_fn
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward, repertoire_mask
 from src.embeddings.expectation.usage import loadBatch
@@ -18,14 +14,6 @@ device = "cuda"
 
 def write_expectation(data_path, weights_path, output_path, device=device):
     df = pl.read_parquet(data_path)
-
-    # get pitch_year id
-    df = df.with_columns(
-        pitcher_year=pl.struct(["pitcher_id", "game_year"]).rank("dense") - 1,
-        batter_year=pl.struct(["batter_id", "game_year"]).rank("dense") - 1,
-    )
-
-    df = pitch_group(df)
 
     # number of pitchers, batters, len
     pitchers = df["pitcher_year"].n_unique()

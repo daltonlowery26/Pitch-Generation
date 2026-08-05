@@ -13,7 +13,7 @@ import wandb
 
 from src.embeddings.pitch.modules.cvae import CVAE, cvae_loss
 from src.embeddings.pitch.modules.umap import UmapDataset, UmapLoss, umapGraph
-from src.utils.modeling 
+from src.utils.modeling.opti import make_optimizers
 
 device = "cuda"
 
@@ -69,11 +69,13 @@ def train(
     valDataset,
     kmuTrain,
     kmuVal,
-    optimizer,
+    muon,
+    adamw,
+    muon_sched,
+    adamw_sched,
     umap_loss,
     reconLoss,
     batchsize,
-    sched,
     epochs,
 ):
     c_model = torch.compile(model)
@@ -107,7 +109,8 @@ def train(
         for h_index, t_index in indexs(
             train_heads, train_tails, batchsize, device, gen, shuffle=True
         ):
-            optimizer.zero_grad()
+            muon.zero_grad()
+            adamw.zero_grad()
             loss = forward(
                 c_model,
                 kmu_train,
@@ -120,8 +123,10 @@ def train(
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
-            optimizer.step()
-            sched.step()
+            muon.step()
+            adamw.step()
+            muon_sched.step()
+            adamw_sched.step()
 
             total_loss += loss.detach()
 
@@ -189,24 +194,9 @@ if __name__ == "__main__":
         "pitcher_id_year",
         "pitch_group",
     ]
-    input = input.with_columns(
-        pitcher_id_year=pl.struct(pl.col("pitcher_id"), pl.col("game_year")).rank(
-            "dense"
-        )
-    )
-    input = (
-        input.with_columns(
-            pitch_group=pl.col("pitch_group").rank("dense") - 1,
-        )
-        .with_columns(
-            pitcher_id_year=pl.when(pl.len().over("pitcher_id_year") < 100)
-            .then(0)
-            .otherwise(pl.col("pitcher_id_year").rank("dense"))
-        )
-        .with_columns(pitcher_id_year=pl.col("pitcher_id_year").rank("dense") - 1)
-    )
     input = input.drop_nulls(subset=features)
 
+    # count
     pitchers = input["pitcher_id_year"].n_unique()
     pitches = input["pitch_group"].n_unique()
 
@@ -250,31 +240,21 @@ if __name__ == "__main__":
         input_dim=10,
         pitch_dim=16,
         pitcher_dim=16,
-        h_dim=256,
-        latent_dim=6,
+        h_dim=128,
+        latent_dim=5,
         dropout=0.15,
-        n_layers=3,
+        n_layers=4,
         n_pitchers=pitchers,
         n_pitches=pitches,
     )
-
+    print(sum(p.numel() for p in model.parameters()))
+    
     # loss functions
     reconLoss = nn.MSELoss()
     umapLoss = UmapLoss(minDist=0.5, spread=1.0, negSample=20)
 
     # optimizer and lr sched
-    opti = configure_optimizer(model=model)
-
-    sched = torch.optim.lr_scheduler.OneCycleLR(
-        opti,
-        max_lr=0.005,
-        total_steps=total_steps,
-        pct_start=10 / epochs,
-        anneal_strategy="cos",
-        div_factor=100,
-        final_div_factor=1e2,
-    )
-    print(sum(p.numel() for p in model.parameters()))
+    muon, adamw, onecycle_muon, onecycle_adamw = make_optimizers(model=model, lr=0.05)
 
     # %% train model
     gc.collect()
@@ -286,10 +266,12 @@ if __name__ == "__main__":
         valDataset=valDataset,
         kmuTrain=trainD,
         kmuVal=valD,
-        optimizer=opti,
+        muon=muon,
+        adamw=adamw, 
+        muon_sched=onecycle_muon,
+        adamw_sched=onecycle_adamw,
         umap_loss=umapLoss,
         reconLoss=reconLoss,
         batchsize=batch_size,
-        sched=sched,
         epochs=epochs,
     )

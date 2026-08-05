@@ -1,11 +1,11 @@
-# %% package
+# package
 import polars as pl
 import torch
 
 from src.embeddings.pitch.modules.cvae import CVAE
 
 
-# %% encode each pitch, then decode from its latent as the generative step
+# encode each pitch, then decode from its latent as the generative step
 def get_embeddings(model, data, device):
     model.to(device)
     model.eval()
@@ -38,7 +38,7 @@ def get_embeddings(model, data, device):
 
 
 if __name__ == "__main__":
-    # %% full set
+    # full set
     features = [
         "hra",
         "vra",
@@ -54,25 +54,9 @@ if __name__ == "__main__":
         "pitch_group",
     ]
     input = pl.read_parquet("data/source/pitch_2015_2026.parquet")
-
-    # input ranks
-    input = input.with_columns(
-        pitcher_id_year=pl.struct(pl.col("pitcher_id"), pl.col("game_year")).rank(
-            "dense"
-        )
-    )
-    input = (
-        input.with_columns(pitch_group=pl.col("pitch_group").rank("dense") - 1)
-        .with_columns(
-            pitcher_id_year=pl.when(pl.len().over("pitcher_id_year") < 100)
-            .then(0)
-            .otherwise(pl.col("pitcher_id_year").rank("dense"))
-        )
-        .with_columns(pitcher_id_year=pl.col("pitcher_id_year").rank("dense") - 1)
-    )
     input = input.drop_nulls(subset=features)
 
-    pitchers = input["pitcher_id_year"].n_unique()
+    pitchers = input["pitcher_year"].n_unique()
     pitches = input["pitch_group"].n_unique()
 
     # normalize
@@ -82,7 +66,7 @@ if __name__ == "__main__":
             + [pl.col(f) for f in features[10:]]
         )
     )
-
+    
     model = CVAE(
         input_dim=10,
         pitch_dim=12,
@@ -99,12 +83,10 @@ if __name__ == "__main__":
     sd = {k.removeprefix("_orig_mod."): v for k, v in sd.items()}
     model.load_state_dict(sd)
 
-    # %%
     model.to("cuda")
     fullData = torch.tensor(input["kmu"].to_list(), device="cuda")
     embed, gen = get_embeddings(model, fullData, "cuda")
 
-    # %%
     embedPL = pl.DataFrame({"embed": list(embed), "genPitch": list(gen)})
     input = pl.concat([input, embedPL], how="horizontal")
     input.write_parquet("data/pitch/pitch_map.parquet")

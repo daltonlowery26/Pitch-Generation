@@ -11,7 +11,7 @@ class OutcomeProb(Dataset):
         df = df.sort(["pitchBatter", "atBatNumber", "pitch_number"])
         ids = torch.tensor(df["pitchBatter"].to_list())
 
-        pitchEmb = df[""].explode().to_numpy().astype(np.float32).reshape(-1, 10)
+        pitchEmb = df["pitchGen"].explode().to_numpy().astype(np.float32).reshape(-1, 10)
         expEmb = df["expEmb"].explode().to_numpy().astype(np.float32).reshape(-1, 4)
         bipLabel = (
             df["bipArr"]

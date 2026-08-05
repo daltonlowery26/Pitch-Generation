@@ -32,24 +32,17 @@ class UsageDataset(Dataset):
         emb = df["genPitch"].explode().to_numpy().astype(np.float32).reshape(-1, 10)
         pitch_group = df["pitch_group"].to_numpy().astype(np.int32)
 
-        # tensors
+        # train and labels
         self.embeds = torch.from_numpy(emb)
         self.labels = torch.from_numpy(pitch_group)
 
         # constants
         self.abNum = torch.from_numpy(df["atBatNumber"].to_numpy().astype(np.int32))
         self.count = torch.from_numpy(df["countArr"].to_numpy().astype(np.int32))
-        self.pitcherID = torch.from_numpy(
-            df["pitcher_year"].to_numpy().astype(np.int32)
-        )
+        self.pitcherID = torch.from_numpy(df["pitcher_year"].to_numpy().astype(np.int32))
         self.batterID = torch.from_numpy(df["batter_year"].to_numpy().astype(np.int32))
-        self.game_pk = torch.from_numpy(df["game_pk"].to_numpy().astype(np.int32))
-        self.at_bat_number = torch.from_numpy(
-            df["at_bat_number"].to_numpy().astype(np.int32)
-        )
-        self.pitch_number = torch.from_numpy(
-            df["pitch_number"].to_numpy().astype(np.int32)
-        )
+        self.at_bat_number = torch.from_numpy(df["at_bat_number"].to_numpy().astype(np.int32))
+        self.pitch_number = torch.from_numpy(df["pitch_number"].to_numpy().astype(np.int32))
 
         # change in atbat
         changes = torch.where(ids[1:] != ids[:-1])[0] + 1
@@ -74,7 +67,6 @@ class UsageDataset(Dataset):
             "count": self.count[s:e],
             "pitcherID": self.pitcherID[s:e],
             "batterID": self.batterID[s:e],
-            "game_pk": self.game_pk[s:e],
             "at_bat_number": self.at_bat_number[s:e],
             "pitch_number": self.pitch_number[s:e],
         }
@@ -88,7 +80,6 @@ def collate_fn(batch):
     count = [b["count"] for b in batch]
     pitcherID = [b["pitcherID"] for b in batch]
     batterID = [b["batterID"] for b in batch]
-    game_pk = [b["game_pk"] for b in batch]
     at_bat_number = [b["at_bat_number"] for b in batch]
     pitch_number = [b["pitch_number"] for b in batch]
 
@@ -101,7 +92,6 @@ def collate_fn(batch):
     pitcherID = nn.utils.rnn.pad_sequence(pitcherID, batch_first=True)
     batterID = nn.utils.rnn.pad_sequence(batterID, batch_first=True)
     labels = nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=-1)
-    game_pk = nn.utils.rnn.pad_sequence(game_pk, batch_first=True, padding_value=-1)
     at_bat_number = nn.utils.rnn.pad_sequence(
         at_bat_number, batch_first=True, padding_value=-1
     )
@@ -117,56 +107,13 @@ def collate_fn(batch):
         "count": count,
         "pitcherID": pitcherID,
         "batterID": batterID,
-        "game_pk": game_pk,
         "at_bat_number": at_bat_number,
         "pitch_number": pitch_number,
     }
 
 
-def pitch_group(df):
-    pitch_groups = {
-        "fastball": {"4-Seam Fastball", "Sinker", "Cutter"},
-        "breaking": {
-            "Knuckle Curve",
-            "Screwball",
-            "Slow Curve",
-            "Curveball",
-            "Slider",
-            "Slurve",
-            "Sweeper",
-        },
-        "offspeed": {"Changeup", "Split-Finger", "Forkball"},
-        "others": {
-            "Other",
-            "Unknown",
-            "None",
-            "Knuckleball",
-            "Eephus",
-            "Intentional Ball",
-            "Pitch Out",
-        },
-    }
-    pitch_to_group = {
-        pitch: group for group, pitches in pitch_groups.items() for pitch in pitches
-    }
-    df = df.with_columns(
-        pitch_group=pl.col("pitch_name")
-        .replace_strict(pitch_to_group, default="others")
-        .rank("dense")
-        - 1
-    )
-    return df
-
-
 def load_usage_data(path, val_start: date, val_end: date, test_cutoff: date):
     df = pl.read_parquet(path)
-
-    # clean
-    df = df.with_columns(
-        pitcher_year=pl.struct(["pitcher_id", "game_year"]).rank("dense") - 1,
-        batter_year=pl.struct(["batter_id", "game_year"]).rank("dense") - 1,
-    )
-    df = pitch_group(df)
 
     # number of pitchers, batters, len
     pitchers = df["pitcher_year"].n_unique()
