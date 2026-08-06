@@ -11,10 +11,12 @@ dependencies = [
     "numpyro>=0.21.0",
     "polars>=1.42.1",
     "pyarrow>=25.0.0",
+    "pybaseball>=2.2.7",
     "pytest>=9.1.1",
     "ruff>=0.15.21",
     "scikit-learn>=1.9.0",
     "torch>=2.13.0",
+    "torchaudio>=2.11.0",
     "torchvision>=0.28.0",
     "visidata>=3.4",
 ]
@@ -25,3 +27,7 @@ package-dir = {"" = "src"}
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.ruff.lint]
+extend-select = ["I"]
+ignore = ["DTZ001"]

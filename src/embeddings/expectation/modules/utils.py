@@ -1,9 +1,21 @@
-
+import numpy as np
 import torch
 import torch.nn.functional as F
 
 
-def inferForward(model, batch, repMask):
+def loadBatch(batchFeat, device):
+    return {
+        "embeds": batchFeat["embeds"].to(device, non_blocking=True),
+        "labels": batchFeat["labels"].to(device, non_blocking=True).long(),
+        "lengths": batchFeat["lengths"].to(device, non_blocking=True),
+        "atbat": batchFeat["abNum"].to(device, non_blocking=True),
+        "count": batchFeat["count"].to(device, non_blocking=True),
+        "pitcherID": batchFeat["pitcherID"].to(device, non_blocking=True),
+        "batterID": batchFeat["batterID"].to(device, non_blocking=True),
+    }
+
+def inferForward(model, batch, repMask, device):
+    batch = loadBatch(batch, device)
     logits, rep = model(
         batch["embeds"],
         batch["atbat"],
@@ -23,6 +35,26 @@ def inferForward(model, batch, repMask):
     prior_probs = torch.softmax(prior_logits, dim=-1)
     return logits, rep, probs, prior_logits, prior_probs
 
+def get(model, loader, repMask, device):
+    labels = []
+    preds = []
+    for batch in loader:
+        _, _, probs, _, prior_probs = inferForward(model, batch, repMask, device)
+
+        full_probs = torch.cat([prior_probs.unsqueeze(1), probs[:, :-1]], dim=1) 
+
+        flat_probs = full_probs.reshape(-1, full_probs.size(-1))
+        flat_labels = batch['labels'].reshape(-1)
+        
+        mask = flat_labels != -1
+        labels.append(flat_labels[mask].cpu().numpy())
+        preds.append(flat_probs[mask].cpu().numpy())
+        
+    return (
+        np.concatenate(preds),
+        np.concatenate(labels),
+    )
+        
 
 # masking out what pitchers actually throw
 def repertoire_mask(df, num_pitchers, num_pitches):

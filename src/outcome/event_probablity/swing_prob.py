@@ -1,8 +1,9 @@
 import numpy as np
 import polars as pl
 import torch
-import torch.nn as nn
 from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
+from torch import nn
+
 from src.outcome.modules.data import (
     OutcomeProb,
     split_loaders,
@@ -10,7 +11,7 @@ from src.outcome.modules.data import (
 from src.outcome.modules.transformer import Transformer
 from src.utils.modeling.opti import make_optimizers
 
-device = "cuda"
+device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
 
 
 def load_data(df, prefetch, workers, batch_size):

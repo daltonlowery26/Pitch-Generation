@@ -1,12 +1,13 @@
-import torch.nn as nn
+from torch import nn
 from torch.optim import AdamW, Muon
 from torch.optim.lr_scheduler import OneCycleLR
+
 
 def tag(obj, *, no_wd=None, no_muon=None, lr_ratio=None):
     params = obj.parameters() if isinstance(obj, nn.Module) else [obj]
     for p in params:
         t = getattr(p, "_optim_tag", None)
-        t = dict(no_wd=False, no_muon=False, lr_ratio=1.0) if t is None else t
+        t = {'no_wd':False, 'no_muon':False, 'lr_ratio':1.0} if t is None else t
         
         if no_wd is not None:    
             t["no_wd"] = no_wd
@@ -29,13 +30,13 @@ def make_optimizers(model, *, lr, weight_decay=0.0, muon_momentum=0.90, adamw_be
             if not p.requires_grad or id(p) in seen:
                 continue
             seen.add(id(p))
-            t = getattr(p, "_optim_tag", dict(no_wd=False, no_muon=False, lr_ratio=1.0))
+            t = getattr(p, "_optim_tag", {'no_wd':False, 'no_muon':False, 'lr_ratio':1.0})
             use_muon = p.ndim == 2 and not is_emb and not t["no_muon"]
             wd = 0.0 if (t["no_wd"] or p.ndim < 2) else weight_decay
             (muon if use_muon else adamw).setdefault((t["lr_ratio"], wd), []).append(p)
 
     def groups(buckets, base_lr):
-        return [dict(params=ps, lr=base_lr * r, weight_decay=wd)
+        return [{'params': ps, 'lr':base_lr * r, 'weight_decay':wd}
                 for (r, wd), ps in buckets.items()]
 
     def sched(opt, gs):

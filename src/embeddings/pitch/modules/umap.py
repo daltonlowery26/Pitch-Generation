@@ -1,11 +1,11 @@
 import numpy as np
 import torch
-import torch.nn as nn
 from scipy.optimize import curve_fit
 from scipy.sparse import coo_matrix
+from torch import nn
 from torch.utils.data import Dataset
 
-device = "cuda"
+device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
 
 
 def relative_distance(batch_features, n_neighbors):

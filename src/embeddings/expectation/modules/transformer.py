@@ -1,9 +1,10 @@
 # %% batter expectation of pitch in different counts
 import torch
-import torch.nn as nn
+from torch import nn
 
-from src.utils.modeling.rope import RoPE
 from src.utils.modeling.opti import tag
+from src.utils.modeling.rope import RoPE
+
 
 # helper functions for transformer
 class FiLM(nn.Module):

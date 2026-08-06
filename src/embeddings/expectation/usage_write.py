@@ -9,7 +9,7 @@ from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward, repertoire_mask
 from src.embeddings.expectation.usage_embed import loadBatch
 
-device = "cuda"
+device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
 
 
 def write_expectation(data_path, weights_path, output_path, device=device):

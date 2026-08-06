@@ -111,7 +111,7 @@ def calculate_HRA(vy0, ay, release_extension, vx0, ax):
 if __name__ == "__main__":
     # load, filter, drop cols, count, rename
     unclean = (
-        pl.scan_csv("raw/pitch_2015_2026.csv")
+        pl.scan_csv("data/raw/pitch_2015_2026.csv")
         .filter(pl.col("game_type") == "R")
         .select(pl.exclude(cols_to_remove))
         .with_columns(
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     
     # join batter names (fangraphs merge)
     bat_names = (
-        pl.scan_csv("raw_data/constants/batter_names.csv")
+        pl.scan_csv("data/raw/batter_names.csv")
         .rename({"last_name, first_name": "batter_name"})
         .select(pl.exclude("year"))
         .unique()
@@ -213,7 +213,16 @@ if __name__ == "__main__":
             .then(0)
             .otherwise(pl.col("pitcher_year").rank("dense"))
         )
-        .with_columns(pitcher_id_year=pl.col("pitcher_year").rank("dense") - 1)
+        .with_columns(pitcher_year=pl.col("pitcher_year").rank("dense") - 1)
+    )
+    unclean = (
+        unclean
+        .with_columns(
+            batter_year=pl.when(pl.len().over("batter_year") < 50)
+            .then(0)
+            .otherwise(pl.col("batter_year").rank("dense"))
+        )
+        .with_columns(batter_year=pl.col("batter_year").rank("dense") - 1)
     )
 
     # typing date
@@ -261,4 +270,4 @@ if __name__ == "__main__":
     
     
     # write cleaned parquet
-    unclean.write_parquet("cleaned_data/pitch_2015_2026.parquet")
+    unclean.write_parquet("data/cleaned/pitch_2015_2026.parquet")

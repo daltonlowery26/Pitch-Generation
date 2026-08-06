@@ -3,35 +3,21 @@ from datetime import datetime
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, f1_score, log_loss, roc_auc_score
-from src.utils.modeling.opti import make_optimizers
+from torch import nn
 from torch.utils.data import DataLoader
 
 from src.embeddings.expectation.modules.data import collate_fn, load_usage_data
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import (
-    inferForward,
+    get,
+    loadBatch,
     multistep_loss,
 )
+from src.utils.modeling.opti import make_optimizers
 
-device = "cuda"
-WEIGHTS = "weights/usage.pth"
-
-
-@torch._disable_dynamo
-def loadBatch(batchFeat, device):
-    return {
-        "embeds": batchFeat["embeds"].to(device, non_blocking=True),
-        "labels": batchFeat["labels"].to(device, non_blocking=True).long(),
-        "lengths": batchFeat["lengths"].to(device, non_blocking=True),
-        "atbat": batchFeat["abNum"].to(device, non_blocking=True),
-        "count": batchFeat["count"].to(device, non_blocking=True),
-        "pitcherID": batchFeat["pitcherID"].to(device, non_blocking=True),
-        "batterID": batchFeat["batterID"].to(device, non_blocking=True),
-    }
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
 
 def forwardLoss(model, batch, repMask, i1, aux_h, aux_w, h1_w, aux=True):
     logits, _ = model(
@@ -79,9 +65,7 @@ def usageTrain(
     repMask,
     epochs,
     h1_w,
-    aux_w,
-    weights_path=WEIGHTS,
-    report_fn=None,
+    aux_w
 ):
     best_loss = np.inf
     i1 = model.horizons.index(1)
@@ -126,41 +110,37 @@ def usageTrain(
 
         if avg_val_loss < best_loss:
             best_loss = avg_val_loss
-            if weights_path is not None:
-                torch.save(
-                    {
-                        "epoch": epoch,
-                        "model_state": model.state_dict(),
-                        "muon_state": muon_opti.state_dict(),
-                        "adamw_state": adamw_opti.state_dict(),
-                    },
-                    weights_path,
-                )
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state": model.state_dict(),
+                    "muon_state": muon_opti.state_dict(),
+                    "adamw_state": adamw_opti.state_dict(),
+                },
+                'weights/usage.pth',
+            )
         print(
             f"epoch: {epoch} | oneahead loss {train_1:.3f}| "
             f"train_loss: {train_loss:.3f} | val_loss: {avg_val_loss:.3f}"
         )
 
-        if report_fn is not None:
-            report_fn(epoch, avg_val_loss)
-
     return best_loss
 
 
 def usageTest(model, test_loader, repMask, device=device):
-    _, _, preds, labels = get(model, loadBatch, inferForward, test_loader, repMask, device)
+    preds, labels = get(model, test_loader, repMask, device)
     y = labels
     yhat = preds.argmax(axis=1)
     C = model.out_dim
+
     return {
-        "f1": float(f1_score(y, yhat, average="macro")),
-        "roc_auc": float(
-            roc_auc_score(
-                y, preds, multi_class="ovr", average="macro", labels=list(range(C))
+        "f1": f1_score(y, yhat, average="macro"),
+        "roc_auc": roc_auc_score(
+                y, preds, multi_class="ovr", average="macro", labels=list(range(C)
             )
         ),
-        "log_loss": float(log_loss(y, preds, labels=list(range(C)))),
-        "accuracy": float(accuracy_score(y, yhat)),
+        "log_loss": log_loss(y, preds, labels=list(range(C))),
+        "accuracy": accuracy_score(y, yhat),
     }
 
 

@@ -69,10 +69,10 @@ if __name__ == "__main__":
     
     model = CVAE(
         input_dim=10,
-        pitch_dim=12,
-        pitcher_dim=24,
-        h_dim=256,
-        latent_dim=64,
+        pitch_dim=16,
+        pitcher_dim=16,
+        h_dim=128,
+        latent_dim=5,
         dropout=0.15,
         n_layers=4,
         n_pitchers=pitchers,
@@ -83,7 +83,6 @@ if __name__ == "__main__":
     sd = {k.removeprefix("_orig_mod."): v for k, v in sd.items()}
     model.load_state_dict(sd)
 
-    model.to("cuda")
     fullData = torch.tensor(input["kmu"].to_list(), device="cuda")
     embed, gen = get_embeddings(model, fullData, "cuda")
 

@@ -8,14 +8,13 @@ import numpy as np
 import polars as pl
 import scipy.sparse as sp
 import torch
-import torch.nn as nn
-import wandb
+from torch import nn
 
 from src.embeddings.pitch.modules.cvae import CVAE, cvae_loss
 from src.embeddings.pitch.modules.umap import UmapDataset, UmapLoss, umapGraph
 from src.utils.modeling.opti import make_optimizers
 
-device = "cuda"
+device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
 
 
 # get batch of index, randomly permutate
@@ -80,14 +79,9 @@ def train(
 ):
     c_model = torch.compile(model)
     c_model.to(device)
+    
     best_loss = np.inf
     gen = torch.Generator(device=device).manual_seed(26)
-
-    run = wandb.init(
-        entity="daltonlowery-emory-university",
-        project="UmapTuning",
-        reinit="create_new",
-    )
 
     # features stay on GPU
     kmu_train = torch.tensor(kmuTrain["kmu"].to_list(), device=device)
@@ -157,16 +151,12 @@ def train(
             torch.save(
                 {
                     "epoch": epoch,
-                    "model_state": model.state_dict(),
-                    "optimizer_state": optimizer.state_dict(),
+                    "model_state": model.state_dict()
                 },
                 checkpoint_path,
             )
-            artifact = wandb.Artifact(f"checkpoint-{run.id}", type="model")
-            artifact.add_file(checkpoint_path)
-            run.log_artifact(artifact, aliases=["latest", f"epoch_{epoch}"])
 
-        print(f"epoch: {epoch}, valLoss: {avg_val_loss}, trainLoss: {train_loss}")
+        print(f"epoch: {epoch}, valLoss: {avg_val_loss}, trainLoss: {train_loss}", flush=True)
 
 
 if __name__ == "__main__":
@@ -174,7 +164,6 @@ if __name__ == "__main__":
     epochs = 300
     batch_size = 96000
     torch.set_float32_matmul_precision("high")
-    wandb.login(key=os.getenv("WANB"))
 
     # %% input data consruction
     input = pl.read_parquet(
@@ -191,13 +180,13 @@ if __name__ == "__main__":
         "vx0",
         "vy0",
         "vz0",
-        "pitcher_id_year",
+        "pitcher_year",
         "pitch_group",
     ]
     input = input.drop_nulls(subset=features)
 
     # count
-    pitchers = input["pitcher_id_year"].n_unique()
+    pitchers = input["pitcher_year"].n_unique()
     pitches = input["pitch_group"].n_unique()
 
     # normalize
@@ -210,18 +199,17 @@ if __name__ == "__main__":
 
     # presplit data
     val_start = date(2025, 7, 1)
-    input = input.with_columns(game_date=pl.col("game_date").str.to_date())
     trainD = input.filter(pl.col("game_date") < val_start)
     valD = input.filter(pl.col("game_date") >= val_start)
 
     # umapGraph, split correctly
     graph_dir = "/domino/home/jdlower/scratch/data/graphs"
-    train_graph_path = f"{graph_dir}/train125_{val_start:%Y%m%d}.npz"
-    val_graph_path = f"{graph_dir}/val125_{val_start:%Y%m%d}.npz"
+    train_graph_path = f"{graph_dir}/train100_{val_start:%Y%m%d}.npz"
+    val_graph_path = f"{graph_dir}/val100_{val_start:%Y%m%d}.npz"
 
     if not (os.path.exists(train_graph_path) and os.path.exists(val_graph_path)):
-        sp.save_npz(train_graph_path, umapGraph(trainD, n_neighbors=125))
-        sp.save_npz(val_graph_path, umapGraph(valD, n_neighbors=125))
+        sp.save_npz(train_graph_path, umapGraph(trainD, n_neighbors=100))
+        sp.save_npz(val_graph_path, umapGraph(valD, n_neighbors=100))
 
     trainGraph = sp.load_npz(train_graph_path)
     valGraph = sp.load_npz(val_graph_path)
@@ -254,7 +242,16 @@ if __name__ == "__main__":
     umapLoss = UmapLoss(minDist=0.5, spread=1.0, negSample=20)
 
     # optimizer and lr sched
-    muon, adamw, onecycle_muon, onecycle_adamw = make_optimizers(model=model, lr=0.05)
+    muon, adamw, onecycle_muon, onecycle_adamw = make_optimizers(
+        model,
+        lr=0.005,
+        weight_decay=0.1,
+        total_steps=total_steps,
+        pct_start= 1100 / total_steps,
+        anneal_strategy="cos",
+        div_factor=100,
+        final_div_factor=1e2,
+    )
 
     # %% train model
     gc.collect()

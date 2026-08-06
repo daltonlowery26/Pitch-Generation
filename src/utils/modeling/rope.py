@@ -1,7 +1,9 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
+
 from .opti import tag
+
 
 # RoPE block
 class RoPE(nn.Module):

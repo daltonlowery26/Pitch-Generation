@@ -1,6 +1,8 @@
 import torch
-import torch.nn as nn
+from torch import nn
+
 from src.utils.modeling.opti import tag
+
 
 # recon loss and kl loss
 def cvae_loss(recon, x, mu_q, logvar_q, loss_fn, beta=1.0):
@@ -70,7 +72,7 @@ class CVAE(nn.Module):
         self.pitchEmbed = nn.Embedding(num_embeddings=n_pitches, embedding_dim=pitch_dim)
 
         torch.nn.init.constant_(self.pitcherEmbed.weight, 0.0)
-        torch.nn.init.constant_(self.pitcherEmbed.weight, 0.0)
+        torch.nn.init.constant_(self.pitchEmbed.weight, 0.0)
         
         # condtioning modulation
         self.cond_proj = nn.Linear(pitcher_dim + pitch_dim, h_dim)

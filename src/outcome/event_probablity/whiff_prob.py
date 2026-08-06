@@ -1,7 +1,6 @@
 import numpy as np
 import polars as pl
 import torch
-import torch.nn as nn
 from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
 from src.pitch_value.event_prob.transformer.modules.data import (
     OutcomeProb,
@@ -12,6 +11,7 @@ from src.pitch_value.event_prob.transformer.modules.utils import (
     create_training_optimizers,
     lr_range_test_transf,
 )
+from torch import nn
 
 device = "mps"
 

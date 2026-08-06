@@ -4,7 +4,7 @@ from typing import NamedTuple
 import numpy as np
 import polars as pl
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.utils.data import Dataset, Subset
 
 from src.embeddings.expectation.modules.utils import repertoire_mask

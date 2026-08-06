@@ -1,7 +1,9 @@
 # %%
 import torch
-import torch.nn as nn
+from torch import nn
+
 from src.utils.modeling.rope import RoPE
+
 
 # helper functions for transformer
 class FiLM(nn.Module):
