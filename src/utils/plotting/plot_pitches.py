@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import torch
-import umap
+from sklearn.manifold import TSNE
 
 from src.embeddings.pitch.modules.cvae import CVAE
 
@@ -14,7 +14,7 @@ PITCH_TYPES = {
 }
 
 
-def plot(data, model, n_samples_per_type = 50, umap_n_neighbors = 30, umap_min_dist = 0.1,):
+def plot(data, model, n_samples_per_type = 50):
     pitcher_counts = (
         data.group_by("pitcher_year")
         .agg(pl.n_unique("pitch_group").alias("n_types"), pl.len().alias("n_pitches"))
@@ -24,7 +24,9 @@ def plot(data, model, n_samples_per_type = 50, umap_n_neighbors = 30, umap_min_d
 
     if len(pitcher_counts) == 0:
         pitcher_counts = (
-            data.group_by("pitcher_year")
+            data
+            .filter(pl.col('pitcher_year') != 0)
+            .group_by("pitcher_year")
             .agg(
                 pl.n_unique("pitch_group").alias("n_types"),
                 pl.len().alias("n_pitches"),
@@ -37,11 +39,11 @@ def plot(data, model, n_samples_per_type = 50, umap_n_neighbors = 30, umap_min_d
         target_pitcher = int(data["pitcher_year"].unique().item(0))
         print(f"falling back to pitcher {target_pitcher}")
     else:
-        target_pitcher = int(pitcher_counts.item(0, "pitcher_year"))
-        print(f"using pitcher {target_pitcher}")
+        target_pitcher = int(pitcher_counts.item(1, "pitcher_year"))
+        print(f"using pitcher {target_pitcher}", flush=True)
         print(pitcher_counts.head(5))
 
-    pitcher_data = data.filter(pl.col("pitcher_year") == target_pitcher)
+    pitcher_data = data.filter(pl.col("pitcher_year") == target_pitcher).sample(n=250)
     pitcher_types = sorted(pitcher_data["pitch_group"].unique().to_list())
 
     real_traits = np.array(pitcher_data["kmu"].to_list())
@@ -63,11 +65,10 @@ def plot(data, model, n_samples_per_type = 50, umap_n_neighbors = 30, umap_min_d
     gen_labels = np.array(all_gen_labels)
 
     combined = np.concatenate([real_traits_10, gen_traits], axis=0)
-    print("fitting UMAP")
+    print("fitting TSNE")
 
-    reducer = umap.UMAP(
-        n_neighbors=umap_n_neighbors,
-        min_dist=umap_min_dist,
+    reducer = TSNE(
+        n_components=2,
         random_state=26,
     )
     embedding = reducer.fit_transform(combined)
@@ -110,13 +111,13 @@ def plot(data, model, n_samples_per_type = 50, umap_n_neighbors = 30, umap_min_d
             linewidth=0.3,
         )
 
-    ax.set_title(f"UMAP: Real vs Generated Pitches — Pitcher {target_pitcher}", fontsize=14)
-    ax.set_xlabel("UMAP 1")
-    ax.set_ylabel("UMAP 2")
+    ax.set_title(f"TSNE: Real vs Generated Pitches — Pitcher {target_pitcher}", fontsize=14)
+    ax.set_xlabel("TSNE 1")
+    ax.set_ylabel("TSNE 2")
     ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), framealpha=0.9)
     fig.tight_layout()
 
-    out_path = "data/plotsgenerated_pitches_umap.png"
+    out_path = "data/plots/gen_pitch.png"
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     print(f"saved to {out_path}")
     plt.show()
@@ -138,7 +139,7 @@ if __name__ == "__main__":
         "pitch_group",
     ]
 
-    data = pl.read_parquet('data/pitch/pitch_map.parquet').drop_nulls(subset=features)
+    data = pl.read_parquet('data/cleaned/pitch_2015_2026.parquet').drop_nulls(subset=features)
 
     means = {f: data[f].mean() for f in features[:10]}
     stds = {f: data[f].std() for f in features[:10]}
@@ -150,22 +151,22 @@ if __name__ == "__main__":
         )
     )
 
-    n_pitchers = data["pitcher_year"].n_unique()
-    n_pitches = data["pitch_group"].n_unique()
+    pitchers = data["pitcher_year"].n_unique()
+    pitches = data["pitch_group"].n_unique()
 
     model = CVAE(
         input_dim=10,
-        pitch_dim=16,
-        pitcher_dim=16,
+        pitch_dim=24,
+        pitcher_dim=24,
         h_dim=128,
-        latent_dim=5,
-        dropout=0.15,
-        n_layers=4,
-        n_pitchers=n_pitchers,
-        n_pitches=n_pitches,
+        latent_dim=6,
+        dropout=0.1,
+        n_layers=5,
+        n_pitchers=pitchers,
+        n_pitches=pitches,
     )
 
-    sd = torch.load('weights/pitch_map.pth', map_location=torch.device("cpu"))
+    sd = torch.load('weights/cvae_map.pth', map_location=torch.device("cpu"))
     sd = sd.get("model_state", sd)
     sd = {k.removeprefix("_orig_mod."): v for k, v in sd.items()}
     model.load_state_dict(sd)

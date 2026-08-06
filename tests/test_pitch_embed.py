@@ -6,7 +6,7 @@ from src.embeddings.pitch.modules.cvae import CVAE, cvae_loss
 DEVICE = "cpu"         
 INPUT_DIM = 10         
 LATENT_DIM = 8        
-N_PITCHES = 12
+N_PITCHES = 20
 N_PITCHERS = 1000
 
 

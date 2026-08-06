@@ -222,7 +222,7 @@ if __name__ == "__main__":
     total_steps = len(train_loader) * epochs
     muon_opti, adamw_opti, muon_sched, adamw_sched = make_optimizers(
         model,
-        lr=0.05,
+        lr=0.005,
         weight_decay=0.1,
         total_steps=total_steps,
         pct_start= 1100 / total_steps,
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     )
 
     # test, on the best val checkpoint rather than the final epoch
-    ckpt = torch.load(WEIGHTS, map_location=device)
+    ckpt = torch.load('weights/usage.pth', map_location=device)
     model.load_state_dict(ckpt["model_state"])
     print(f"testing epoch {ckpt['epoch']} weights", flush=True)
     print(usageTest(model, test_loader, mask, device), flush=True)

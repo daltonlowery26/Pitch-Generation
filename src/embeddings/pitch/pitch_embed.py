@@ -169,6 +169,11 @@ if __name__ == "__main__":
     input = pl.read_parquet(
         "/domino/home/jdlower/scratch/data/source/pitch_2015_2026.parquet"
     )
+    input = input.with_columns(
+        pitch_name = pl.col('pitch_name').rank("dense") - 1
+    )
+    print(input['pitch_name'].max(), flush=True)
+    
     features = [
         "hra",
         "vra",
@@ -181,14 +186,14 @@ if __name__ == "__main__":
         "vy0",
         "vz0",
         "pitcher_year",
-        "pitch_group",
+        "pitch_name",
     ]
     input = input.drop_nulls(subset=features)
 
     # count
     pitchers = input["pitcher_year"].n_unique()
-    pitches = input["pitch_group"].n_unique()
-
+    pitches = input["pitch_name"].n_unique()
+    print(pitches, flush=True)
     # normalize
     input = input.with_columns(
         kmu=pl.concat_list(
@@ -204,8 +209,8 @@ if __name__ == "__main__":
 
     # umapGraph, split correctly
     graph_dir = "/domino/home/jdlower/scratch/data/graphs"
-    train_graph_path = f"{graph_dir}/train100_{val_start:%Y%m%d}.npz"
-    val_graph_path = f"{graph_dir}/val100_{val_start:%Y%m%d}.npz"
+    train_graph_path = f"{graph_dir}/train100.npz"
+    val_graph_path = f"{graph_dir}/val100.npz"
 
     if not (os.path.exists(train_graph_path) and os.path.exists(val_graph_path)):
         sp.save_npz(train_graph_path, umapGraph(trainD, n_neighbors=100))
@@ -228,23 +233,23 @@ if __name__ == "__main__":
         input_dim=10,
         pitch_dim=16,
         pitcher_dim=16,
-        h_dim=128,
-        latent_dim=5,
-        dropout=0.15,
-        n_layers=4,
+        h_dim=64,
+        latent_dim=6,
+        dropout=0.1,
+        n_layers=8,
         n_pitchers=pitchers,
         n_pitches=pitches,
     )
-    print(sum(p.numel() for p in model.parameters()))
+    print(sum(p.numel() for p in model.parameters()), flush=True)
     
     # loss functions
     reconLoss = nn.MSELoss()
-    umapLoss = UmapLoss(minDist=0.5, spread=1.0, negSample=20)
+    umapLoss = UmapLoss(minDist=0.3, spread=1.0, negSample=20)
 
     # optimizer and lr sched
     muon, adamw, onecycle_muon, onecycle_adamw = make_optimizers(
         model,
-        lr=0.005,
+        lr=0.001,
         weight_decay=0.1,
         total_steps=total_steps,
         pct_start= 1100 / total_steps,
