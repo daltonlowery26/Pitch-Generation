@@ -169,10 +169,6 @@ if __name__ == "__main__":
     input = pl.read_parquet(
         "/domino/home/jdlower/scratch/data/source/pitch_2015_2026.parquet"
     )
-    input = input.with_columns(
-        pitch_name = pl.col('pitch_name').rank("dense") - 1
-    )
-    print(input['pitch_name'].max(), flush=True)
     
     features = [
         "hra",
@@ -189,11 +185,14 @@ if __name__ == "__main__":
         "pitch_name",
     ]
     input = input.drop_nulls(subset=features)
+    print(len(input), flush=True)
 
-    # count
+    # count, try to catch embed errors
     pitchers = input["pitcher_year"].n_unique()
     pitches = input["pitch_name"].n_unique()
-    print(pitches, flush=True)
+    assert input['pitch_name'].max() == pitches - 1      
+    assert input['pitcher_year'].max() == pitchers - 1 
+    
     # normalize
     input = input.with_columns(
         kmu=pl.concat_list(

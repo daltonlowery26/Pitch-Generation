@@ -1,11 +1,7 @@
 /data
-/docs
-/opti
-*.pyc
-AGENTS.md
 /weights
-.opencode
-.venv
+*.pyc
 *.md
 *.lock
 *.json
+*.DS_Store

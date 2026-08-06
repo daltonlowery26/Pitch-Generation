@@ -153,8 +153,16 @@ if __name__ == "__main__":
     )
     
     # pitch group
-    unclean = unclean.with_columns(pitch_group=pl.col("pitch_name").replace_strict(pitch_to_group, default="others").rank("dense")- 1)
+    unclean = unclean.with_columns(pitch_group=pl.col("pitch_name").replace_strict(pitch_to_group, default="others"))
+    unclean = unclean.filter(pl.col('pitch_group') != 'others')
+    print(len(unclean), flush=True)
+    unclean = unclean.with_columns(pitch_group = pl.col('pitch_group').rank("dense") - 1)
     des = unclean["description"].unique()
+
+    # pitch name
+    unclean = unclean.with_columns(
+        pitch_name = pl.col('pitch_name').rank("dense") - 1
+    )
     
     # outcome labels + sequence identifiers
     unclean = unclean.with_columns(
@@ -200,6 +208,31 @@ if __name__ == "__main__":
             (pl.col("bb_type").is_null()),
         ),
     )
+    
+    # remove non-continuous pitch sequences + any pitchBatter containing them
+    unclean = unclean.with_columns(
+        pl.len().over(["game_pk", "at_bat_number"]).alias("_n_pitches"),
+        pl.col("pitch_number").min().over(["game_pk", "at_bat_number"]).alias("_min_pitch"),
+        pl.col("pitch_number").max().over(["game_pk", "at_bat_number"]).alias("_max_pitch"),
+        pl.col("pitch_number").n_unique().over(["game_pk", "at_bat_number"]).alias("_n_unique"),
+    )
+
+    unclean = unclean.with_columns(
+        pl.when(
+            (pl.col("_min_pitch") == 1)
+            & (pl.col("_max_pitch") == pl.col("_n_pitches"))
+            & (pl.col("_n_unique") == pl.col("_n_pitches"))
+        ).then(0).otherwise(1).alias("_bad_atbat")
+    )
+
+    unclean = unclean.with_columns(
+        pl.col("_bad_atbat").max().over("pitchBatter").alias("_bad_matchup")
+    )
+
+    unclean = unclean.filter(pl.col("_bad_matchup") == 0).drop(
+        ["_n_pitches", "_min_pitch", "_max_pitch", "_n_unique", "_bad_atbat", "_bad_matchup"]
+    )
+    print(len(unclean), flush=True)
     
     # pitcher / batter year identifiers
     unclean = unclean.with_columns(
