@@ -45,6 +45,7 @@ def test_continuous_pitch_sequences():
         | (pl.col("max_pitch") != pl.col("n"))
         | (pl.col("n_unique") != pl.col("n"))
     )
+    print(bad, flush=True)
     assert bad.shape[0] == 0, f"{bad.shape[0]} non-continuous sequences found"
 
 
