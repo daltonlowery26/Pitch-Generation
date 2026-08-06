@@ -14,6 +14,7 @@ def loadBatch(batchFeat, device):
         "batterID": batchFeat["batterID"].to(device, non_blocking=True),
     }
 
+# general inference forward pass
 def inferForward(model, batch, repMask, device):
     batch = loadBatch(batch, device)
     logits, rep = model(
@@ -35,6 +36,7 @@ def inferForward(model, batch, repMask, device):
     prior_probs = torch.softmax(prior_logits, dim=-1)
     return logits, rep, probs, prior_logits, prior_probs
 
+# return labels and preds for testing
 def get(model, loader, repMask, device):
     labels = []
     preds = []
@@ -67,22 +69,37 @@ def repertoire_mask(df, num_pitchers, num_pitches):
 
 
 # multistep loss, consider times t + 1 + 2 + 3
-def multistep_loss(logits, labels, lengths, horizons, weights=[0.5, 0.33, 0.17], ignore_index=-1):
+def multistep_loss(logits, labels, lengths, horizons, weights, ignore_index=-1):
     B, _, T, C = logits.shape
+
+    # check if pos is within valid range
     pos = torch.arange(T, device=logits.device)
+
+    # weighted loss
     total = logits.new_zeros(())
+    
     parts = {}
     for i, k in enumerate(horizons):
+        # shift target at this step to first step in seq
         tgt = torch.cat([labels[:, k:], labels.new_full((B, k), ignore_index)], dim=1)
+
+        # only keep valid postions beyond length
         valid = (pos[None, :] + k) < lengths[:, None]
         tgt = tgt.masked_fill(~valid, ignore_index)
+
+        # reshape labels and targets for cross entropy
         li = logits[:, i].reshape(B * T, C)
         ti = tgt.reshape(B * T)
+
+        # comput loss if valid indexes
         if (ti != ignore_index).any():
             loss_k = F.cross_entropy(li, ti, ignore_index=ignore_index)
         else:
             loss_k = logits.new_zeros(())
-        w = 1.0 if weights is None else weights[i]
+
+        # add weighted portion
+        w = weights[i]
         total = total + w * loss_k
         parts[f"h{k}"] = loss_k.detach()
+        
     return total, parts

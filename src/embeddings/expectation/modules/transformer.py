@@ -42,20 +42,21 @@ class BatterExp(nn.Module):
         self.embedDim = embed_dim
         self.pitcherDim = pitcher_dim
         self.batterDim = batter_dim
-        self.horizonDim = 8
+        self.horizonDim = 4
         self.abDim = 4
         self.countDim = 4
-        self.horizons = tuple(horizons)
-        self.horizonEmb = nn.Embedding(len(self.horizons), self.horizonDim)
+        
         self.dim = dim
-        self.max_len = max_len
         self.nhead = nheads
         self.out_dim = out_dim
+        self.max_len = max_len
+        self.horizons = tuple(horizons)
 
-        # pretrained
+        # embeddings
         self.pitcher_embed = nn.Embedding(num_embeddings=pitcher_seasons, embedding_dim=self.pitcherDim)
         self.batter_embed = nn.Embedding(num_embeddings=batter_seasons, embedding_dim=self.batterDim)
-
+        self.horizonEmb = nn.Embedding(num_embeddings=len(self.horizons), embedding_dim=self.horizonDim)
+        
         # pitcher project
         self.pitcher_proj = nn.Sequential(
             nn.RMSNorm(self.pitcherDim),
@@ -63,7 +64,7 @@ class BatterExp(nn.Module):
         )
 
         # ab number
-        self.abEmb = nn.Embedding(num_embeddings=8, embedding_dim=self.abDim)
+        self.ab_emb = nn.Embedding(num_embeddings=8, embedding_dim=self.abDim)
         self.count_emb = nn.Embedding(num_embeddings=16, embedding_dim=self.countDim)
 
         # learned pitcher projection for first pitch
@@ -152,7 +153,7 @@ class BatterExp(nn.Module):
 
         # create context rep, shift and scale
         count_e = self.count_emb(count)
-        ab_e = self.abEmb(abNum)
+        ab_e = self.ab_emb(abNum)
         context = torch.cat([count_e, ab_e], dim=-1)
         embed = self.context_film(embed, context)
 
@@ -161,7 +162,7 @@ class BatterExp(nn.Module):
         embed = torch.cat([pitcher_tok, embed], dim=1)
         embed = self.input_proj(embed)
 
-        # per-batch real positions 0..T-1
+        # per-batch real positions
         positions = torch.arange(Tp, device=embed.device).unsqueeze(0).expand(B, -1)
 
         # causal and padding masks, true means attend

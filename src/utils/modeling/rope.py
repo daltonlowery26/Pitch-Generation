@@ -7,7 +7,7 @@ from .opti import tag
 
 # RoPE block
 class RoPE(nn.Module):
-    def __init__(self, dim, nhead, dropout, max_seq_len, rope_base=5000.0):
+    def __init__(self, dim, nhead, max_seq_len, dropout=0.0, rope_base=5000.0):
         super().__init__()
         assert dim % nhead == 0, f"dim ({dim}) must be divisible by nhead ({nhead})"
         head_dim = dim // nhead
@@ -43,8 +43,12 @@ class RoPE(nn.Module):
 
         # ffn
         self.ffn = nn.Sequential(
-            nn.RMSNorm(self.dim, elementwise_affine=False),
+            nn.RMSNorm(self.dim),
             nn.Linear(self.dim, self.dim * 4),
+            nn.SiLU(),
+
+            nn.RMSNorm(self.dim * 4),
+            nn.Linear(self.dim * 4, self.dim * 4),
             nn.SiLU(),
             nn.Linear(self.dim * 4, self.dim),
         )
@@ -81,11 +85,11 @@ class RoPE(nn.Module):
             k,
             v,
             attn_mask=attn_mask,
-            dropout_p=self.dropout if self.training else 0.0,
+            dropout_p=self.dropout,
             is_causal=False,
         )
         attn = out.transpose(1, 2).reshape(B, T, self.dim)
 
         attn = self.attn_proj(attn)
-        out = attn + self.resid_drop(self.ffn(attn))
+        out = self.resid_drop(self.ffn(h)) + attn
         return out

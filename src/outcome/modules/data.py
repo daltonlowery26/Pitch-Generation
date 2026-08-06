@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import numpy as np
 import torch
 from torch.nn.utils.rnn import pad_sequence
@@ -136,9 +134,9 @@ def split_loaders(
     prefetch,
     workers,
     drop_last,
+    cutoff,
     bucket_size=None,
     pin=True,
-    cutoff=datetime(2025, 7, 1).date(),
 ):
     if bucket_size is None:
         bucket_size = 250 * batch_size
@@ -160,7 +158,7 @@ def split_loaders(
     def make_loader(indices, shuffle):
         lengths = seq_lengths[indices]
         sampler = LenSampler(
-            indices, lengths, batch_size, bucket_size, drop_last=drop_last, shuffle=True
+            indices, lengths, batch_size, bucket_size, drop_last=drop_last, shuffle=shuffle
         )
         return DataLoader(
             data,
