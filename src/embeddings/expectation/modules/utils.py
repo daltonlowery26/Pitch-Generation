@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -23,6 +22,7 @@ def inferForward(model, batch, repMask, device):
         batch["count"],
         batch["pitcherID"],
         batch["batterID"],
+        repMask,
         batch["lengths"],
     )
     i1 = model.horizons.index(1)

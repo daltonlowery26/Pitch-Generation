@@ -60,7 +60,7 @@ def write_expectation(data_path, weights_path, output_path, device=device):
         )
         for feat in loader:
             batch = loadBatch(feat, device)
-            _, _, probs, _, prior_probs = inferForward(model, batch, mask)
+            _, _, probs, _, prior_probs = inferForward(model, batch, mask, device=device)
             lengths = batch["lengths"]
             for i in range(batch["embeds"].shape[0]):
                 L = lengths[i].item()

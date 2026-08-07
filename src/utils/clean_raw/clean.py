@@ -161,6 +161,7 @@ if __name__ == "__main__":
 
     # pitch name
     unclean = unclean.with_columns(
+        pitch_str = pl.col('pitch_name'),
         pitch_name = pl.col('pitch_name').rank("dense") - 1
     )
     
