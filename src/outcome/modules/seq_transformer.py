@@ -27,6 +27,7 @@ class Transformer(nn.Module):
         layers,
         dropout,
         nhead,
+        attn_fnn_block,
         output_dim,
         countdim,
         abdim,
@@ -77,6 +78,7 @@ class Transformer(nn.Module):
             [
                 RoPE(
                     dim=dim,
+                    block_layers=attn_fnn_block,
                     nhead=nhead,
                     dropout=dropout,
                     max_seq_len=max_seq_len,

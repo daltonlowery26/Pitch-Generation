@@ -217,6 +217,7 @@ if __name__ == "__main__":
         embed_dim=arch["embed_dim"],
         batter_seasons=batters,
         pitcher_seasons=pitchers,
+        attn_ffn_blocks=arch["attn_ffn_blocks"],
     )
     model.to(device)
     print(sum(p.numel() for p in model.parameters() if p.requires_grad))

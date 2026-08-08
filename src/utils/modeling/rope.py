@@ -5,9 +5,20 @@ from torch import nn
 from .opti import tag
 
 
+class Residual(nn.Module):
+    def __init__(self, fn: nn.Module):
+        super().__init__()
+        self.fn = fn
+
+    def forward(self, x):
+        return x + self.fn(x)
+
+
 # RoPE block
 class RoPE(nn.Module):
-    def __init__(self, dim, nhead, dropout, max_seq_len, rope_base=5000.0):
+    def __init__(
+        self, dim, nhead, block_layers, dropout, max_seq_len, rope_base=5000.0
+    ):
         super().__init__()
         assert dim % nhead == 0, f"dim ({dim}) must be divisible by nhead ({nhead})"
         head_dim = dim // nhead
@@ -44,16 +55,29 @@ class RoPE(nn.Module):
         )
 
         # ffn
-        self.ffn = nn.Sequential(
-            nn.RMSNorm(self.dim, elementwise_affine=False),
-            nn.Linear(self.dim, self.dim * 4),
-            nn.SiLU(),
-            nn.Linear(self.dim * 4, self.dim),
-        )
-        tag(self.ffn[3], no_muon=True)
+        ffn_layers = [
+            nn.Sequential(
+                nn.RMSNorm(self.dim, elementwise_affine=False),
+                nn.Linear(self.dim, self.dim * 4),
+                nn.SiLU(),
+            ),
+        ]
 
-        # residual dropout
-        self.resid_drop = nn.Dropout(dropout)
+        for _ in range(block_layers):
+            ffn_layers.append(
+                Residual(
+                    nn.Sequential(
+                        nn.RMSNorm(self.dim * 4),
+                        nn.Linear(self.dim * 4, self.dim * 4),
+                        nn.SiLU(),
+                    )
+                )
+            )
+
+        out = nn.Linear(self.dim * 4, self.dim)
+        tag(out, no_muon=True)
+        ffn_layers.append(out)
+        self.ffn = nn.Sequential(*ffn_layers)
 
     def _apply_rope(self, x, positions):
         cos = self.rope_cos[positions].unsqueeze(1).to(x.dtype)  # ty:ignore
@@ -89,5 +113,5 @@ class RoPE(nn.Module):
         attn = out.transpose(1, 2).reshape(B, T, self.dim)
 
         attn = self.attn_proj(attn)
-        out = attn + self.resid_drop(self.ffn(attn))
+        out = attn + self.ffn(attn)
         return out

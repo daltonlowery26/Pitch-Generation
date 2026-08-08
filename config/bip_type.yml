@@ -3,6 +3,7 @@ arch:
   layers: 6
   dropout: 0.1
   nhead: 4
+  attn_ffn_blocks: 2
   embed_dim: 10
   countdim: 4
   exp_dim: 3

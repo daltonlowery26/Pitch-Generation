@@ -3,6 +3,7 @@ arch:
   nheads: 4
   layers: 5
   dropout: 0.1
+  attn_ffn_blocks: 2
   horizons: [1, 2, 3, 4]
   pitcher_dim: 24
   batter_dim: 24

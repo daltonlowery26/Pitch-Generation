@@ -132,6 +132,7 @@ if __name__ == "__main__":
         layers=arch["layers"],
         dropout=arch["dropout"],
         nhead=arch["nhead"],
+        attn_fnn_block=arch["attn_ffn_blocks"],
         embed_dim=arch["embed_dim"],
         countdim=arch["countdim"],
         abdim=arch["abdim"],

@@ -36,6 +36,7 @@ class BatterExp(nn.Module):
         embed_dim,
         batter_seasons,
         pitcher_seasons,
+        attn_ffn_blocks,
     ):
         super().__init__()
         # constants
@@ -99,6 +100,7 @@ class BatterExp(nn.Module):
                 RoPE(
                     dim=dim,
                     nhead=nheads,
+                    block_layers=attn_ffn_blocks,
                     dropout=dropout,
                     max_seq_len=max_len + 1,
                 )
