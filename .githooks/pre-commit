@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "pre-commit: running ruff format..."
+uv run ruff format .
+
+echo "pre-commit: running ruff check --fix..."
+uv run ruff check --fix .
