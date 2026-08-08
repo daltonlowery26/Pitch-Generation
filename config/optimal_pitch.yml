@@ -1,0 +1,93 @@
+data:
+  pitch_map: data/pitch/pitch_exp.parquet
+
+models:
+  cvae:
+    weight_path: weights/cvae_map.pth
+    arch:
+      input_dim: 10
+      pitch_dim: 16
+      pitcher_dim: 16
+      h_dim: 128
+      latent_dim: 6
+      dropout: 0.1
+      n_layers: 4
+
+  expectation:
+    weight_path: weights/probs/usage.pth
+    arch:
+      dim: 128
+      nheads: 4
+      layers: 5
+      dropout: 0.1
+      horizons: [1, 2, 3, 4]
+      pitcher_dim: 24
+      batter_dim: 24
+      embed_dim: 10
+
+  swing:
+    weight_path: weights/probs/swing_prob.pth
+    arch:
+      dim: 128
+      layers: 6
+      dropout: 0.1
+      nhead: 4
+      embed_dim: 10
+      countdim: 4
+      exp_dim: 3
+      abdim: 4
+      output_dim: 5
+      exp_proj_dim: 16
+      batter_dim: 24
+
+  whiff:
+    weight_path: weights/probs/whiff_prob.pth
+    arch:
+      dim: 128
+      layers: 6
+      dropout: 0.1
+      nhead: 4
+      embed_dim: 10
+      countdim: 4
+      exp_dim: 3
+      abdim: 4
+      output_dim: 5
+      exp_proj_dim: 16
+      batter_dim: 24
+
+  foul:
+    weight_path: weights/probs/foul_prob.pth
+    arch:
+      dim: 128
+      layers: 6
+      dropout: 0.1
+      nhead: 4
+      embed_dim: 10
+      countdim: 4
+      exp_dim: 3
+      abdim: 4
+      output_dim: 5
+      exp_proj_dim: 16
+      batter_dim: 24
+
+  bip_type:
+    weight_path: weights/probs/bip_type.pth
+    arch:
+      dim: 128
+      layers: 6
+      dropout: 0.1
+      nhead: 4
+      embed_dim: 10
+      countdim: 4
+      exp_dim: 3
+      abdim: 4
+      output_dim: 5
+      exp_proj_dim: 16
+      batter_dim: 24
+
+inference:
+  n_cvae_samples: 1000
+  temperature: 3.0
+  hbp_prob: 0.008
+  strike_prob: 0.47
+  game_year: 2025
