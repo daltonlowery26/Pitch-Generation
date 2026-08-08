@@ -11,7 +11,7 @@ from src.outcome.modules.data import (
 from src.outcome.modules.transformer import Transformer
 from src.utils.modeling.opti import make_optimizers
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
+device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
 
 def load_data(df, prefetch, workers, batch_size):
@@ -119,7 +119,9 @@ if __name__ == "__main__":
     batters = df["batter_year"].n_unique()
     pitches = df["pitch_group"].n_unique()
 
-    data, train_loader, val_loader, test_loader = load_data(df, prefetch=4, workers=4, batch_size=4096)
+    data, train_loader, val_loader, test_loader = load_data(
+        df, prefetch=4, workers=4, batch_size=4096
+    )
 
     loss_fn = nn.BCEWithLogitsLoss()
     model = Transformer(
@@ -127,20 +129,18 @@ if __name__ == "__main__":
         layers=4,
         dropout=0.1,
         nhead=4,
-        
         embed_dim=10,
         countdim=4,
         exp_dim=4,
         abdim=4,
         output_dim=1,
-        
         exp_proj_dim=16,
         pitcher_dim=24,
         batter_dim=24,
         n_pitcher_seasons=pitchers,
         n_batter_seasons=batters,
     )
-    
+
     total_steps = len(train_loader) * epochs
     muon_opti, adamw_opti, muon_sched, adamw_sched = make_optimizers(
         model,

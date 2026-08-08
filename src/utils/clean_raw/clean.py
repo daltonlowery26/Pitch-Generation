@@ -108,6 +108,7 @@ def calculate_HRA(vy0, ay, release_extension, vx0, ax):
     HRA = -(vx_s / vy_s).arctan() * (180 / np.pi)
     return HRA
 
+
 if __name__ == "__main__":
     # load, filter, drop cols, count, rename
     unclean = (
@@ -115,7 +116,9 @@ if __name__ == "__main__":
         .filter(pl.col("game_type") == "R")
         .select(pl.exclude(cols_to_remove))
         .with_columns(
-            pl.concat_str(pl.col("balls"), pl.col("strikes"), separator="-").alias("count")
+            pl.concat_str(pl.col("balls"), pl.col("strikes"), separator="-").alias(
+                "count"
+            )
         )
         .rename(
             {
@@ -131,8 +134,7 @@ if __name__ == "__main__":
             }
         )
     ).collect(engine="streaming")
-    
-    
+
     # join batter names (fangraphs merge)
     bat_names = (
         pl.scan_csv("data/raw/batter_names.csv")
@@ -140,10 +142,11 @@ if __name__ == "__main__":
         .select(pl.exclude("year"))
         .unique()
     ).collect(engine="streaming")
-    
-    unclean = unclean.join(bat_names, left_on="batter_id", right_on="player_id", how="left")
-    
-    
+
+    unclean = unclean.join(
+        bat_names, left_on="batter_id", right_on="player_id", how="left"
+    )
+
     # labels and identifiers
     unclean = unclean.with_columns(
         (
@@ -151,31 +154,32 @@ if __name__ == "__main__":
             & pl.col("plate_x").is_between(-0.7083, 0.7083)
         ).alias("abs_strike")
     )
-    
+
     # pitch group
-    unclean = unclean.with_columns(pitch_group=pl.col("pitch_name").replace_strict(pitch_to_group, default="others"))
-    unclean = unclean.filter(pl.col('pitch_group') != 'others')
+    unclean = unclean.with_columns(
+        pitch_group=pl.col("pitch_name").replace_strict(
+            pitch_to_group, default="others"
+        )
+    )
+    unclean = unclean.filter(pl.col("pitch_group") != "others")
     print(len(unclean), flush=True)
-    unclean = unclean.with_columns(pitch_group = pl.col('pitch_group').rank("dense") - 1)
+    unclean = unclean.with_columns(pitch_group=pl.col("pitch_group").rank("dense") - 1)
     des = unclean["description"].unique()
 
     # pitch name
     unclean = unclean.with_columns(
-        pitch_str = pl.col('pitch_name'),
-        pitch_name = pl.col('pitch_name').rank("dense") - 1
+        pitch_str=pl.col("pitch_name"),
+        pitch_name=pl.col("pitch_name").rank("dense") - 1,
     )
-    
+
     # outcome labels + sequence identifiers
     unclean = unclean.with_columns(
         atBatNumber=pl.col("at_bat_number")
         .rank("dense")
         .over(["game_pk", "pitcher_id", "batter_id"]),
-        
         pitchBatter=pl.struct(["game_pk", "pitcher_id", "batter_id"]).rank("dense"),
-        
         countArr=pl.col("count").str.split("-").list.get(0).cast(pl.Int32) * 3
         + pl.col("count").str.split("-").list.get(1).cast(pl.Int32),
-        
         swing=pl.col("description").is_in(
             [
                 "hit_into_play",
@@ -209,13 +213,22 @@ if __name__ == "__main__":
             (pl.col("bb_type").is_null()),
         ),
     )
-    
+
     # remove non-continuous pitch sequences + any pitchBatter containing them
     unclean = unclean.with_columns(
         pl.len().over(["game_pk", "at_bat_number"]).alias("_n_pitches"),
-        pl.col("pitch_number").min().over(["game_pk", "at_bat_number"]).alias("_min_pitch"),
-        pl.col("pitch_number").max().over(["game_pk", "at_bat_number"]).alias("_max_pitch"),
-        pl.col("pitch_number").n_unique().over(["game_pk", "at_bat_number"]).alias("_n_unique"),
+        pl.col("pitch_number")
+        .min()
+        .over(["game_pk", "at_bat_number"])
+        .alias("_min_pitch"),
+        pl.col("pitch_number")
+        .max()
+        .over(["game_pk", "at_bat_number"])
+        .alias("_max_pitch"),
+        pl.col("pitch_number")
+        .n_unique()
+        .over(["game_pk", "at_bat_number"])
+        .alias("_n_unique"),
     )
 
     unclean = unclean.with_columns(
@@ -223,7 +236,10 @@ if __name__ == "__main__":
             (pl.col("_min_pitch") == 1)
             & (pl.col("_max_pitch") == pl.col("_n_pitches"))
             & (pl.col("_n_unique") == pl.col("_n_pitches"))
-        ).then(0).otherwise(1).alias("_bad_atbat")
+        )
+        .then(0)
+        .otherwise(1)
+        .alias("_bad_atbat")
     )
 
     unclean = unclean.with_columns(
@@ -231,49 +247,47 @@ if __name__ == "__main__":
     )
 
     unclean = unclean.filter(pl.col("_bad_matchup") == 0).drop(
-        ["_n_pitches", "_min_pitch", "_max_pitch", "_n_unique", "_bad_atbat", "_bad_matchup"]
+        [
+            "_n_pitches",
+            "_min_pitch",
+            "_max_pitch",
+            "_n_unique",
+            "_bad_atbat",
+            "_bad_matchup",
+        ]
     )
     print(len(unclean), flush=True)
-    
+
     # pitcher / batter year identifiers
     unclean = unclean.with_columns(
         pitcher_year=pl.struct(["pitcher_id", "game_year"]).rank("dense") - 1,
         batter_year=pl.struct(["batter_id", "game_year"]).rank("dense") - 1,
     )
-    unclean = (
-        unclean
-        .with_columns(
-            pitcher_year=pl.when(pl.len().over("pitcher_year") < 50)
-            .then(0)
-            .otherwise(pl.col("pitcher_year").rank("dense"))
-        )
-        .with_columns(pitcher_year=pl.col("pitcher_year").rank("dense") - 1)
-    )
-    unclean = (
-        unclean
-        .with_columns(
-            batter_year=pl.when(pl.len().over("batter_year") < 50)
-            .then(0)
-            .otherwise(pl.col("batter_year").rank("dense"))
-        )
-        .with_columns(batter_year=pl.col("batter_year").rank("dense") - 1)
-    )
+    unclean = unclean.with_columns(
+        pitcher_year=pl.when(pl.len().over("pitcher_year") < 50)
+        .then(0)
+        .otherwise(pl.col("pitcher_year").rank("dense"))
+    ).with_columns(pitcher_year=pl.col("pitcher_year").rank("dense") - 1)
+    unclean = unclean.with_columns(
+        batter_year=pl.when(pl.len().over("batter_year") < 50)
+        .then(0)
+        .otherwise(pl.col("batter_year").rank("dense"))
+    ).with_columns(batter_year=pl.col("batter_year").rank("dense") - 1)
 
     # typing date
     unclean = unclean.with_columns(
-        game_date = pl.col("game_date").str.to_date("%Y-%m-%d")
+        game_date=pl.col("game_date").str.to_date("%Y-%m-%d")
     )
-    
-    
+
     # physics-derived features
     vy_f = -(pl.col("vy0").pow(2) - (2 * pl.col("ay") * (50 - (17 / 12)))).sqrt()
     t = (vy_f - pl.col("vy0")) / pl.col("ay")
     vz_f = pl.col("vz0") + (pl.col("az") * t)
     unclean = unclean.with_columns(vaa=-(vz_f / vy_f).arctan() * (180 / np.pi))
-    
+
     vx_f = pl.col("vx0") + pl.col("ax") * t
     unclean = unclean.with_columns(haa=-(vx_f / vy_f).arctan() * (180 / np.pi))
-    
+
     # vra / hra (release_extension filled first)
     unclean = unclean.with_columns(
         pl.col("release_extension").fill_null(pl.col("release_extension").mean())
@@ -294,14 +308,13 @@ if __name__ == "__main__":
             pl.col("ax"),
         ).alias("hra"),
     )
-    
+
     # column ordering (names at start)
     start = ["game_date", "pitcher_name", "pitcher_id", "batter_name", "batter_id"]
     unclean = unclean.select(
         pl.col(start),
         pl.exclude(start),  # get rest of cols
     )
-    
-    
+
     # write cleaned parquet
     unclean.write_parquet("data/cleaned/pitch_2015_2026.parquet")

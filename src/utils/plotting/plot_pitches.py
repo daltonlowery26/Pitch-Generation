@@ -17,8 +17,7 @@ def plot(data, model, n_samples_per_type=200, temperature=1.0):
 
     if len(pitcher_counts) == 0:
         pitcher_counts = (
-            data
-            .filter(pl.col('pitcher_year') != 0)
+            data.filter(pl.col("pitcher_year") != 0)
             .group_by("pitcher_year")
             .agg(
                 pl.n_unique("pitch_name").alias("n_types"),
@@ -28,11 +27,17 @@ def plot(data, model, n_samples_per_type=200, temperature=1.0):
             .sort("n_pitches", descending=True)
         )
 
-    eligible = pitcher_counts["pitcher_year"].to_list() if len(pitcher_counts) > 0 else data["pitcher_year"].unique().to_list()
+    eligible = (
+        pitcher_counts["pitcher_year"].to_list()
+        if len(pitcher_counts) > 0
+        else data["pitcher_year"].unique().to_list()
+    )
     target_pitcher = int(np.random.choice(eligible))
 
     pitcher_row = data.filter(pl.col("pitcher_year") == target_pitcher).head(1)
-    pitcher_label = f"{pitcher_row['pitcher_name'].item(0)} ({pitcher_row['game_year'].item(0)})"
+    pitcher_label = (
+        f"{pitcher_row['pitcher_name'].item(0)} ({pitcher_row['game_year'].item(0)})"
+    )
 
     if len(pitcher_counts) == 0:
         print(f"falling back to pitcher {pitcher_label}")
@@ -42,7 +47,9 @@ def plot(data, model, n_samples_per_type=200, temperature=1.0):
 
     pitcher_data = data.filter(pl.col("pitcher_year") == target_pitcher)
     type_counts = pitcher_data.group_by("pitch_name").len()
-    pitcher_types = sorted(type_counts.filter(pl.col("len") > 10)["pitch_name"].to_list())
+    pitcher_types = sorted(
+        type_counts.filter(pl.col("len") > 10)["pitch_name"].to_list()
+    )
     pitch_name_to_str = dict(data.select(["pitch_name", "pitch_str"]).unique().rows())
 
     real_traits = np.array(pitcher_data["kmu"].to_list())
@@ -56,7 +63,11 @@ def plot(data, model, n_samples_per_type=200, temperature=1.0):
         pitcher_embed = model.pitcherEmbed(torch.tensor([target_pitcher]))
         pitch_embed = model.pitchEmbed(torch.tensor([pg]))
         c = torch.cat([pitcher_embed, pitch_embed], dim=-1)
-        generated = model.generate(c, n=n_samples_per_type, temperature=temperature).cpu().numpy()
+        generated = (
+            model.generate(c, n=n_samples_per_type, temperature=temperature)
+            .cpu()
+            .numpy()
+        )
         all_gen_traits.append(generated)
         all_gen_labels.extend([pg] * n_samples_per_type)
 
@@ -140,7 +151,9 @@ if __name__ == "__main__":
         "pitch_name",
     ]
 
-    data = pl.read_parquet('data/cleaned/pitch_2015_2026.parquet').drop_nulls(subset=features)
+    data = pl.read_parquet("data/cleaned/pitch_2015_2026.parquet").drop_nulls(
+        subset=features
+    )
 
     means = {f: data[f].mean() for f in features[:10]}
     stds = {f: data[f].std() for f in features[:10]}
@@ -152,7 +165,7 @@ if __name__ == "__main__":
         )
     )
 
-    pitchers = data["pitcher_year"].n_unique() 
+    pitchers = data["pitcher_year"].n_unique()
     pitches = data["pitch_name"].n_unique()
 
     model = CVAE(
@@ -167,7 +180,7 @@ if __name__ == "__main__":
         n_pitches=pitches,
     )
 
-    sd = torch.load('weights/cvae_map.pth', map_location=torch.device("cpu"))
+    sd = torch.load("weights/cvae_map.pth", map_location=torch.device("cpu"))
     sd = sd.get("model_state", sd)
     sd = {k.removeprefix("_orig_mod."): v for k, v in sd.items()}
     model.load_state_dict(sd)

@@ -45,7 +45,7 @@ class BatterExp(nn.Module):
         self.horizonDim = 4
         self.abDim = 4
         self.countDim = 4
-        
+
         self.dim = dim
         self.nhead = nheads
         self.out_dim = out_dim
@@ -53,10 +53,16 @@ class BatterExp(nn.Module):
         self.horizons = tuple(horizons)
 
         # embeddings
-        self.pitcher_embed = nn.Embedding(num_embeddings=pitcher_seasons, embedding_dim=self.pitcherDim)
-        self.batter_embed = nn.Embedding(num_embeddings=batter_seasons, embedding_dim=self.batterDim)
-        self.horizonEmb = nn.Embedding(num_embeddings=len(self.horizons), embedding_dim=self.horizonDim)
-        
+        self.pitcher_embed = nn.Embedding(
+            num_embeddings=pitcher_seasons, embedding_dim=self.pitcherDim
+        )
+        self.batter_embed = nn.Embedding(
+            num_embeddings=batter_seasons, embedding_dim=self.batterDim
+        )
+        self.horizonEmb = nn.Embedding(
+            num_embeddings=len(self.horizons), embedding_dim=self.horizonDim
+        )
+
         # pitcher project
         self.pitcher_proj = nn.Sequential(
             nn.RMSNorm(self.pitcherDim),
@@ -166,8 +172,12 @@ class BatterExp(nn.Module):
         positions = torch.arange(Tp, device=embed.device).unsqueeze(0).expand(B, -1)
 
         # causal and padding masks, true means attend
-        causal = ~torch.triu(torch.ones(Tp, Tp, device=embed.device, dtype=torch.bool), diagonal=1)
-        key_valid = torch.arange(Tp, device=embed.device).unsqueeze(0) < (lengths + 1).unsqueeze(1)
+        causal = ~torch.triu(
+            torch.ones(Tp, Tp, device=embed.device, dtype=torch.bool), diagonal=1
+        )
+        key_valid = torch.arange(Tp, device=embed.device).unsqueeze(0) < (
+            lengths + 1
+        ).unsqueeze(1)
         attn_mask = causal[None, None] & key_valid[:, None, None, :]
 
         # pass through transformer blocks
@@ -183,15 +193,15 @@ class BatterExp(nn.Module):
         hemb = self.horizonEmb(hidx)
 
         # loop through outputs, add logits
-        pitch_mask = repMask[pitcherID]  
+        pitch_mask = repMask[pitcherID]
         logits = []
-        
+
         for i in range(len(self.horizons)):
             h = hemb[i].view(1, 1, -1).expand(B, T, -1)
             feat = torch.cat([embed, batter_embed, h], dim=-1)
             logits.append(self.out(feat))
 
-        logits = torch.stack(logits, dim=1) 
-        # mask out impossible pitches for a given pitcher       
-        logits = logits.masked_fill(~pitch_mask.unsqueeze(1), -1e9) 
+        logits = torch.stack(logits, dim=1)
+        # mask out impossible pitches for a given pitcher
+        logits = logits.masked_fill(~pitch_mask.unsqueeze(1), -1e9)
         return logits, embed

@@ -10,21 +10,21 @@ def cvae_loss(recon, x, mu_q, logvar_q, loss_fn, beta=1.0):
     kl = -0.5 * (1 + logvar_q - mu_q.pow(2) - logvar_q.exp()).sum(dim=-1)
     return (rec + beta * kl).mean()
 
+
 # residual block
 class FeedForward(nn.Module):
     def __init__(self, dim, dropout):
         super().__init__()
         # layer
         self.block = nn.Sequential(
-            nn.RMSNorm(dim), 
-            nn.Linear(dim, dim * 4), 
-            nn.SiLU(), 
-
+            nn.RMSNorm(dim),
+            nn.Linear(dim, dim * 4),
+            nn.SiLU(),
             nn.RMSNorm(dim * 4),
             nn.Linear(dim * 4, dim * 4),
             nn.SiLU(),
             nn.Dropout(dropout),
-            nn.Linear(dim * 4, dim)
+            nn.Linear(dim * 4, dim),
         )
 
     def forward(self, x):
@@ -68,15 +68,19 @@ class CVAE(nn.Module):
 
         super().__init__()
         # shared conditioning
-        self.pitcherEmbed = nn.Embedding(num_embeddings=n_pitchers, embedding_dim=pitcher_dim)
-        self.pitchEmbed = nn.Embedding(num_embeddings=n_pitches, embedding_dim=pitch_dim)
+        self.pitcherEmbed = nn.Embedding(
+            num_embeddings=n_pitchers, embedding_dim=pitcher_dim
+        )
+        self.pitchEmbed = nn.Embedding(
+            num_embeddings=n_pitches, embedding_dim=pitch_dim
+        )
 
         torch.nn.init.constant_(self.pitcherEmbed.weight, 0.0)
         torch.nn.init.constant_(self.pitchEmbed.weight, 0.0)
-        
+
         # condtioning modulation
         self.cond_proj = nn.Linear(pitcher_dim + pitch_dim, h_dim)
-        
+
         # encoder  q(z | x)
         self.in_norm = nn.RMSNorm(input_dim)
         self.input = nn.Linear(input_dim, h_dim)

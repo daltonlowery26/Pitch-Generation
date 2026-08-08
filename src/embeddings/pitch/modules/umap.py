@@ -5,7 +5,7 @@ from scipy.sparse import coo_matrix
 from torch import nn
 from torch.utils.data import Dataset
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
+device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
 
 def relative_distance(batch_features, n_neighbors):
@@ -172,10 +172,10 @@ class UmapDataset(Dataset):
         self.tails = self.tails[perm]
 
     def __len__(self):
-        return len(self.heads) 
+        return len(self.heads)
 
     def __getitem__(self, idx):
-        return self.heads[idx], self.tails[idx] 
+        return self.heads[idx], self.tails[idx]
 
 
 class UmapLoss(nn.Module):

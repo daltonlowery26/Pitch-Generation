@@ -3,6 +3,7 @@ import polars as pl
 
 _data = None
 
+
 # cached dataloading function to minimize repeated loading
 def _load_data():
     global _data
@@ -23,6 +24,7 @@ def _load_data():
     _data = (bipvalue, bb_strikeout, count_trans_value)
     return _data
 
+
 # calculate the run value of the given pitch
 def pitch_value(
     count,
@@ -35,7 +37,8 @@ def pitch_value(
     gb_prob,
     popup_prob,
     hbp_prob,
-    strike_prob,):
+    strike_prob,
+):
 
     balls, strikes = (int(x) for x in count.split("-"))
     if balls >= 4 or strikes >= 3:

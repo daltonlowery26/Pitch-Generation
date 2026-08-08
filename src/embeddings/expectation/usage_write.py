@@ -9,7 +9,7 @@ from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward, repertoire_mask
 from src.embeddings.expectation.usage_embed import loadBatch
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
+device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
 
 def write_expectation(data_path, weights_path, output_path, device=device):
@@ -60,7 +60,9 @@ def write_expectation(data_path, weights_path, output_path, device=device):
         )
         for feat in loader:
             batch = loadBatch(feat, device)
-            _, _, probs, _, prior_probs = inferForward(model, batch, mask, device=device)
+            _, _, probs, _, prior_probs = inferForward(
+                model, batch, mask, device=device
+            )
             lengths = batch["lengths"]
             for i in range(batch["embeds"].shape[0]):
                 L = lengths[i].item()

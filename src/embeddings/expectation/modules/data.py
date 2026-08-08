@@ -39,10 +39,16 @@ class UsageDataset(Dataset):
         # constants
         self.abNum = torch.from_numpy(df["atBatNumber"].to_numpy().astype(np.int32))
         self.count = torch.from_numpy(df["countArr"].to_numpy().astype(np.int32))
-        self.pitcherID = torch.from_numpy(df["pitcher_year"].to_numpy().astype(np.int32))
+        self.pitcherID = torch.from_numpy(
+            df["pitcher_year"].to_numpy().astype(np.int32)
+        )
         self.batterID = torch.from_numpy(df["batter_year"].to_numpy().astype(np.int32))
-        self.at_bat_number = torch.from_numpy(df["at_bat_number"].to_numpy().astype(np.int32))
-        self.pitch_number = torch.from_numpy(df["pitch_number"].to_numpy().astype(np.int32))
+        self.at_bat_number = torch.from_numpy(
+            df["at_bat_number"].to_numpy().astype(np.int32)
+        )
+        self.pitch_number = torch.from_numpy(
+            df["pitch_number"].to_numpy().astype(np.int32)
+        )
 
         # change in atbat
         changes = torch.where(ids[1:] != ids[:-1])[0] + 1

@@ -84,7 +84,6 @@ if __name__ == "__main__":
     # run_diff from this state to end of half
     df = df.with_columns(run_diff=pl.col("runs_remaining"))
 
-
     # count value
     countValues = df.group_by(["balls", "strikes", "game_year"]).agg(
         rv=pl.col("run_diff").mean()

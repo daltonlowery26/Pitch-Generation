@@ -14,7 +14,7 @@ from src.embeddings.pitch.modules.cvae import CVAE, cvae_loss
 from src.embeddings.pitch.modules.umap import UmapDataset, UmapLoss, umapGraph
 from src.utils.modeling.opti import make_optimizers
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
+device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
 
 # get batch of index, randomly permutate
@@ -79,7 +79,7 @@ def train(
 ):
     c_model = torch.compile(model)
     c_model.to(device)
-    
+
     best_loss = np.inf
     gen = torch.Generator(device=device).manual_seed(26)
 
@@ -149,14 +149,14 @@ def train(
             best_loss = avg_val_loss
             checkpoint_path = "weights/cvae_map.pth"
             torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state": model.state_dict()
-                },
+                {"epoch": epoch, "model_state": model.state_dict()},
                 checkpoint_path,
             )
 
-        print(f"epoch: {epoch}, valLoss: {avg_val_loss}, trainLoss: {train_loss}", flush=True)
+        print(
+            f"epoch: {epoch}, valLoss: {avg_val_loss}, trainLoss: {train_loss}",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     input = pl.read_parquet(
         "/domino/home/jdlower/scratch/data/source/pitch_2015_2026.parquet"
     )
-    
+
     features = [
         "hra",
         "vra",
@@ -190,9 +190,9 @@ if __name__ == "__main__":
     # count, try to catch embed errors
     pitchers = input["pitcher_year"].n_unique()
     pitches = input["pitch_name"].n_unique()
-    assert input['pitch_name'].max() == pitches - 1      
-    assert input['pitcher_year'].max() == pitchers - 1 
-    
+    assert input["pitch_name"].max() == pitches - 1
+    assert input["pitcher_year"].max() == pitchers - 1
+
     # normalize
     input = input.with_columns(
         kmu=pl.concat_list(
@@ -240,7 +240,7 @@ if __name__ == "__main__":
         n_pitches=pitches,
     )
     print(sum(p.numel() for p in model.parameters()), flush=True)
-    
+
     # loss functions
     reconLoss = nn.MSELoss()
     umapLoss = UmapLoss(minDist=0.3, spread=1.0, negSample=20)
@@ -251,7 +251,7 @@ if __name__ == "__main__":
         lr=0.001,
         weight_decay=0.1,
         total_steps=total_steps,
-        pct_start= 1100 / total_steps,
+        pct_start=1100 / total_steps,
         anneal_strategy="cos",
         div_factor=100,
         final_div_factor=1e2,
@@ -268,7 +268,7 @@ if __name__ == "__main__":
         kmuTrain=trainD,
         kmuVal=valD,
         muon=muon,
-        adamw=adamw, 
+        adamw=adamw,
         muon_sched=onecycle_muon,
         adamw_sched=onecycle_adamw,
         umap_loss=umapLoss,

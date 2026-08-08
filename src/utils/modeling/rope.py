@@ -11,7 +11,9 @@ class RoPE(nn.Module):
         super().__init__()
         assert dim % nhead == 0, f"dim ({dim}) must be divisible by nhead ({nhead})"
         head_dim = dim // nhead
-        assert head_dim % 2 == 0, (f"head_dim ({head_dim}) must be even for LLaMA-style RoPE")
+        assert head_dim % 2 == 0, (
+            f"head_dim ({head_dim}) must be even for LLaMA-style RoPE"
+        )
 
         self.dim = dim
         self.nhead = nhead
@@ -21,14 +23,16 @@ class RoPE(nn.Module):
         # qkv projection
         self.qkv = nn.Linear(dim, 3 * dim, bias=False)
         tag(self.qkv, no_muon=True)
-        
+
         # norms
         self.in_norm = nn.RMSNorm(dim, elementwise_affine=False)
         self.q_norm = nn.RMSNorm(head_dim, elementwise_affine=False)
         self.k_norm = nn.RMSNorm(head_dim, elementwise_affine=False)
 
         # precompute cos and sin cache
-        inv_freq = 1.0 / (rope_base ** (torch.arange(0, head_dim, 2).float() / head_dim))
+        inv_freq = 1.0 / (
+            rope_base ** (torch.arange(0, head_dim, 2).float() / head_dim)
+        )
         t = torch.arange(max_seq_len, dtype=torch.float32)
         freqs = torch.outer(t, inv_freq)
         self.register_buffer("rope_cos", freqs.cos(), persistent=False)
@@ -36,9 +40,7 @@ class RoPE(nn.Module):
 
         # attn proj
         self.attn_proj = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.SiLU(),
-            nn.Linear(dim, dim)
+            nn.Linear(dim, dim), nn.SiLU(), nn.Linear(dim, dim)
         )
 
         # ffn
@@ -46,13 +48,12 @@ class RoPE(nn.Module):
             nn.RMSNorm(self.dim),
             nn.Linear(self.dim, self.dim * 4),
             nn.SiLU(),
-
             nn.RMSNorm(self.dim * 4),
             nn.Linear(self.dim * 4, self.dim * 4),
             nn.SiLU(),
             nn.Linear(self.dim * 4, self.dim),
         )
-        tag(self.ffn[3], no_muon=True) 
+        tag(self.ffn[3], no_muon=True)
 
         # residual dropout
         self.resid_drop = nn.Dropout(dropout)

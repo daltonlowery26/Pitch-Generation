@@ -1,4 +1,3 @@
-
 import numpy as np
 import polars as pl
 import torch
@@ -16,6 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 def load_yaml(config_path):
     with open(config_path) as f:
         return yaml.safe_load(f)
+
 
 def load_cvae(cfg, n_pitchers, n_pitches):
     arch = cfg["arch"]
@@ -118,7 +118,9 @@ def parse_count(count_str):
     return count_str, count_arr
 
 
-def get_prior_sequence(df, pitcher_id_year, batter_id_year, prior_seq_len, current_count_str):
+def get_prior_sequence(
+    df, pitcher_id_year, batter_id_year, prior_seq_len, current_count_str
+):
     matchup = df.filter(
         (pl.col("pitcher_year") == pitcher_id_year)
         & (pl.col("batter_year") == batter_id_year)

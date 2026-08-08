@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "pre-push: running ruff format..."
+uv run ruff format .
+
+echo "pre-push: running ruff check --fix..."
+uv run ruff check --fix .
+
 echo "pre-push: running smoke tests..."
 uv run pytest tests/ -q

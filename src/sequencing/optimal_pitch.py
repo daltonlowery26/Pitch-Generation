@@ -48,7 +48,7 @@ def optimal_pitch(
     n_pitcher_seasons = df["pitcher_year"].n_unique()
     n_batter_seasons = df["batter_year"].n_unique()
     n_pitches = df["pitch_group"].n_unique()
-    n_pitches_cvae = df['pitch_name'].n_unique()
+    n_pitches_cvae = df["pitch_name"].n_unique()
     max_len = df.group_by("pitchBatter").len().get_column("len").max()
 
     pitcher_id_year = lookup_player(

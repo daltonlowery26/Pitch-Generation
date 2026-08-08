@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -13,9 +14,9 @@ def loadBatch(batchFeat, device):
         "batterID": batchFeat["batterID"].to(device, non_blocking=True),
     }
 
+
 # general inference forward pass
 def inferForward(model, batch, repMask, device):
-    batch = loadBatch(batch, device)
     logits, rep = model(
         batch["embeds"],
         batch["atbat"],
@@ -36,6 +37,7 @@ def inferForward(model, batch, repMask, device):
     prior_probs = torch.softmax(prior_logits, dim=-1)
     return logits, rep, probs, prior_logits, prior_probs
 
+
 # return labels and preds for testing
 def get(model, loader, repMask, device):
     labels = []
@@ -43,20 +45,20 @@ def get(model, loader, repMask, device):
     for batch in loader:
         _, _, probs, _, prior_probs = inferForward(model, batch, repMask, device)
 
-        full_probs = torch.cat([prior_probs.unsqueeze(1), probs[:, :-1]], dim=1) 
+        full_probs = torch.cat([prior_probs.unsqueeze(1), probs[:, :-1]], dim=1)
 
         flat_probs = full_probs.reshape(-1, full_probs.size(-1))
-        flat_labels = batch['labels'].reshape(-1)
-        
+        flat_labels = batch["labels"].reshape(-1)
+
         mask = flat_labels != -1
-        labels.append(flat_labels[mask].cpu().numpy())
-        preds.append(flat_probs[mask].cpu().numpy())
-        
+        labels.append(flat_labels[mask].cpu().detach().numpy())
+        preds.append(flat_probs[mask].cpu().detach().numpy())
+
     return (
         np.concatenate(preds),
         np.concatenate(labels),
     )
-        
+
 
 # masking out what pitchers actually throw
 def repertoire_mask(df, num_pitchers, num_pitches):
@@ -77,7 +79,7 @@ def multistep_loss(logits, labels, lengths, horizons, weights, ignore_index=-1):
 
     # weighted loss
     total = logits.new_zeros(())
-    
+
     parts = {}
     for i, k in enumerate(horizons):
         # shift target at this step to first step in seq
@@ -101,5 +103,5 @@ def multistep_loss(logits, labels, lengths, horizons, weights, ignore_index=-1):
         w = weights[i]
         total = total + w * loss_k
         parts[f"h{k}"] = loss_k.detach()
-        
+
     return total, parts

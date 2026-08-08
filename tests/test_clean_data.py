@@ -5,7 +5,9 @@ PARQUET_PATH = "data/cleaned/pitch_2015_2026.parquet"
 
 def test_no_nans():
     df = pl.read_parquet(PARQUET_PATH)
-    float_cols = [c for c, d in zip(df.columns, df.dtypes) if d in (pl.Float32, pl.Float64)]
+    float_cols = [
+        c for c, d in zip(df.columns, df.dtypes) if d in (pl.Float32, pl.Float64)
+    ]
     bad = {}
     for col in float_cols:
         n = df[col].is_nan().sum()
@@ -16,7 +18,9 @@ def test_no_nans():
 
 def test_no_infs():
     df = pl.read_parquet(PARQUET_PATH)
-    float_cols = [c for c, d in zip(df.columns, df.dtypes) if d in (pl.Float32, pl.Float64)]
+    float_cols = [
+        c for c, d in zip(df.columns, df.dtypes) if d in (pl.Float32, pl.Float64)
+    ]
     bad = {}
     for col in float_cols:
         n = df[col].is_infinite().sum()
@@ -34,12 +38,14 @@ def test_no_duplicate_columns():
 
 def test_continuous_pitch_sequences():
     df = pl.read_parquet(PARQUET_PATH)
-    grouped = df.group_by(["game_pk", "at_bat_number"]).agg([
-        pl.col("pitch_number").min().alias("min_pitch"),
-        pl.col("pitch_number").max().alias("max_pitch"),
-        pl.col("pitch_number").n_unique().alias("n_unique"),
-        pl.len().alias("n"),
-    ])
+    grouped = df.group_by(["game_pk", "at_bat_number"]).agg(
+        [
+            pl.col("pitch_number").min().alias("min_pitch"),
+            pl.col("pitch_number").max().alias("max_pitch"),
+            pl.col("pitch_number").n_unique().alias("n_unique"),
+            pl.len().alias("n"),
+        ]
+    )
     bad = grouped.filter(
         (pl.col("min_pitch") != 1)
         | (pl.col("max_pitch") != pl.col("n"))
@@ -63,15 +69,21 @@ def test_foul_consistency():
 
 def test_atBatNumber_grouping():
     df = pl.read_parquet(PARQUET_PATH)
-    grouped = df.group_by("pitchBatter").agg([
-        pl.col("atBatNumber").min().alias("min_ab"),
-        pl.col("atBatNumber").max().alias("max_ab"),
-        pl.col("atBatNumber").n_unique().alias("n_unique_ab"),
-        pl.col("at_bat_number").n_unique().alias("n_unique_raw"),
-    ])
+    grouped = df.group_by("pitchBatter").agg(
+        [
+            pl.col("atBatNumber").min().alias("min_ab"),
+            pl.col("atBatNumber").max().alias("max_ab"),
+            pl.col("atBatNumber").n_unique().alias("n_unique_ab"),
+            pl.col("at_bat_number").n_unique().alias("n_unique_raw"),
+        ]
+    )
 
     bad_cont = grouped.filter(pl.col("max_ab") != pl.col("n_unique_ab"))
-    assert bad_cont.shape[0] == 0, f"{bad_cont.shape[0]} groups with gaps in atBatNumber"
+    assert bad_cont.shape[0] == 0, (
+        f"{bad_cont.shape[0]} groups with gaps in atBatNumber"
+    )
 
     bad_map = grouped.filter(pl.col("n_unique_ab") != pl.col("n_unique_raw"))
-    assert bad_map.shape[0] == 0, f"{bad_map.shape[0]} groups with atBatNumber/at_bat_number mapping mismatch"
+    assert bad_map.shape[0] == 0, (
+        f"{bad_map.shape[0]} groups with atBatNumber/at_bat_number mapping mismatch"
+    )

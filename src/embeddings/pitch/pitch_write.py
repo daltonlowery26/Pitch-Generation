@@ -66,7 +66,7 @@ if __name__ == "__main__":
             + [pl.col(f) for f in features[10:]]
         )
     )
-    
+
     model = CVAE(
         input_dim=10,
         pitch_dim=16,

@@ -17,7 +17,8 @@ from src.embeddings.expectation.modules.utils import (
 )
 from src.utils.modeling.opti import make_optimizers
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
+device = torch.device("cuda" if torch.cuda.is_available() else "mps")
+
 
 def forwardLoss(model, batch, repMask, i1, aux_h, aux_w, h1_w, aux=True):
     logits, _ = model(
@@ -65,7 +66,7 @@ def usageTrain(
     repMask,
     epochs,
     h1_w,
-    aux_w
+    aux_w,
 ):
     best_loss = np.inf
     i1 = model.horizons.index(1)
@@ -117,7 +118,7 @@ def usageTrain(
                     "muon_state": muon_opti.state_dict(),
                     "adamw_state": adamw_opti.state_dict(),
                 },
-                'weights/usage.pth',
+                "weights/usage.pth",
             )
         print(
             f"epoch: {epoch} | oneahead loss {train_1:.3f}| "
@@ -136,8 +137,7 @@ def usageTest(model, test_loader, repMask, device=device):
     return {
         "f1": f1_score(y, yhat, average="macro"),
         "roc_auc": roc_auc_score(
-                y, preds, multi_class="ovr", average="macro", labels=list(range(C)
-            )
+            y, preds, multi_class="ovr", average="macro", labels=list(range(C))
         ),
         "log_loss": log_loss(y, preds, labels=list(range(C))),
         "accuracy": accuracy_score(y, yhat),
@@ -225,7 +225,7 @@ if __name__ == "__main__":
         lr=0.005,
         weight_decay=0.1,
         total_steps=total_steps,
-        pct_start= 1100 / total_steps,
+        pct_start=1100 / total_steps,
         anneal_strategy="cos",
         div_factor=100,
         final_div_factor=1e2,
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     )
 
     # test, on the best val checkpoint rather than the final epoch
-    ckpt = torch.load('weights/usage.pth', map_location=device)
+    ckpt = torch.load("weights/usage.pth", map_location=device)
     model.load_state_dict(ckpt["model_state"])
     print(f"testing epoch {ckpt['epoch']} weights", flush=True)
     print(usageTest(model, test_loader, mask, device), flush=True)
