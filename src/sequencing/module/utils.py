@@ -1,7 +1,6 @@
 import numpy as np
 import polars as pl
 import torch
-import yaml
 
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward
@@ -10,11 +9,6 @@ from src.outcome.modules.seq_transformer import Transformer
 from src.sequencing.module.pitch_value import pitch_value
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
-
-
-def load_yaml(config_path):
-    with open(config_path) as f:
-        return yaml.safe_load(f)
 
 
 def load_cvae(cfg, n_pitchers, n_pitches):
@@ -77,7 +71,6 @@ def load_outcome(cfg, output_dim, n_pitcher_seasons, n_batter_seasons):
         embed_dim=arch["embed_dim"],
         exp_dim=arch["exp_dim"],
         exp_proj_dim=arch["exp_proj_dim"],
-        pitcher_dim=arch["pitcher_dim"],
         batter_dim=arch["batter_dim"],
         n_pitcher_seasons=n_pitcher_seasons,
         n_batter_seasons=n_batter_seasons,
@@ -179,7 +172,7 @@ def compute_expectation(batter_exp, prior, rep_mask, pitcher_id_val, batter_id_v
 
     batch = {
         "embeds": embed,
-        "abNum": ab_num,
+        "atbat": ab_num,
         "count": count,
         "pitcherID": pitcher_id,
         "batterID": batter_id,

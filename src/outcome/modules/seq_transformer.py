@@ -33,7 +33,6 @@ class Transformer(nn.Module):
         embed_dim,
         exp_dim,
         exp_proj_dim,
-        pitcher_dim,
         batter_dim,
         n_pitcher_seasons,
         n_batter_seasons,

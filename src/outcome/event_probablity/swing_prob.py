@@ -4,11 +4,12 @@ import torch
 from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
 from torch import nn
 
-from src.outcome.modules.data import (
+from src.outcome.modules.seq_data import (
     OutcomeProb,
     split_loaders,
 )
-from src.outcome.modules.transformer import Transformer
+from src.outcome.modules.seq_transformer import Transformer
+from src.utils.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
@@ -107,10 +108,13 @@ def test(model, test_loader, masking=True):
 
 
 if __name__ == "__main__":
-    epochs = 50
+    cfg = load_config("swing_prob")
+    epochs = cfg["training"]["epochs"]
 
     # preprocessing steps
-    df = pl.read_parquet("data/player/expectation.parquet")
+    df = pl.read_parquet("data/pitch/pitch_exp.parquet").with_columns(
+        pl.col("kmu").list.slice(0, 10)
+    )
 
     # number of pitchers, batters, len
     pitchers = df["pitcher_year"].n_unique()
@@ -118,23 +122,23 @@ if __name__ == "__main__":
     pitches = df["pitch_group"].n_unique()
 
     data, train_loader, val_loader, test_loader = load_data(
-        df, prefetch=4, workers=4, batch_size=4096
+        df, prefetch=4, workers=4, batch_size=cfg["training"]["batch_size"]
     )
 
     loss_fn = nn.BCEWithLogitsLoss()
+    arch = cfg["arch"]
     model = Transformer(
-        dim=128,
-        layers=4,
-        dropout=0.1,
-        nhead=4,
-        embed_dim=10,
-        countdim=4,
-        exp_dim=4,
-        abdim=4,
-        output_dim=1,
-        exp_proj_dim=16,
-        pitcher_dim=24,
-        batter_dim=24,
+        dim=arch["dim"],
+        layers=arch["layers"],
+        dropout=arch["dropout"],
+        nhead=arch["nhead"],
+        embed_dim=arch["embed_dim"],
+        countdim=arch["countdim"],
+        abdim=arch["abdim"],
+        exp_dim=arch["exp_dim"],
+        output_dim=arch["output_dim"],
+        exp_proj_dim=arch["exp_proj_dim"],
+        batter_dim=arch["batter_dim"],
         n_pitcher_seasons=pitchers,
         n_batter_seasons=batters,
     )
@@ -142,7 +146,7 @@ if __name__ == "__main__":
     total_steps = len(train_loader) * epochs
     muon_opti, adamw_opti, muon_sched, adamw_sched = make_optimizers(
         model,
-        lr=0.005,
+        lr=cfg["training"]["lr"],
         weight_decay=0.1,
         total_steps=total_steps,
         pct_start=1100 / total_steps,

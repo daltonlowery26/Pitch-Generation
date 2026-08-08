@@ -3,6 +3,7 @@ import polars as pl
 import torch
 
 from src.embeddings.pitch.modules.cvae import CVAE
+from src.utils.config import load_config
 
 
 # encode each pitch, then decode from its latent as the generative step
@@ -67,14 +68,16 @@ if __name__ == "__main__":
         )
     )
 
+    cfg = load_config("cvae")
+    arch = cfg["arch"]
     model = CVAE(
-        input_dim=10,
-        pitch_dim=16,
-        pitcher_dim=16,
-        h_dim=128,
-        latent_dim=5,
-        dropout=0.15,
-        n_layers=4,
+        input_dim=arch["input_dim"],
+        pitch_dim=arch["pitch_dim"],
+        pitcher_dim=arch["pitcher_dim"],
+        h_dim=arch["h_dim"],
+        latent_dim=arch["latent_dim"],
+        dropout=arch["dropout"],
+        n_layers=arch["n_layers"],
         n_pitchers=pitchers,
         n_pitches=pitches,
     )

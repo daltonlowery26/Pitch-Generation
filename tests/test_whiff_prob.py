@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from src.outcome.modules.transformer import Transformer
+from src.outcome.modules.seq_transformer import Transformer
 
 DEVICE = "cpu"
 PITCH_EMB_DIM = 10
@@ -24,7 +24,6 @@ def tiny_model(dropout=0.0):
         abdim=4,
         output_dim=1,
         exp_proj_dim=16,
-        pitcher_dim=8,
         batter_dim=8,
         n_pitcher_seasons=N_PITCHER_SEASONS,
         n_batter_seasons=N_BATTER_SEASONS,

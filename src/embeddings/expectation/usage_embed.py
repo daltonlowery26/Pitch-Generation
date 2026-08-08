@@ -15,6 +15,7 @@ from src.embeddings.expectation.modules.utils import (
     loadBatch,
     multistep_loss,
 )
+from src.utils.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
@@ -146,8 +147,9 @@ def usageTest(model, test_loader, repMask, device=device):
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
-    batch_size = 4096
-    epochs = 25
+    cfg = load_config("expectation")
+    batch_size = cfg["training"]["batch_size"]
+    epochs = cfg["training"]["epochs"]
 
     val_start = datetime(2022, 8, 1).date()
     val_end = datetime(2022, 9, 30).date()
@@ -201,17 +203,18 @@ if __name__ == "__main__":
     # model set up
     loss_fn = nn.CrossEntropyLoss()
 
+    arch = cfg["arch"]
     model = BatterExp(
-        dim=128,
+        dim=arch["dim"],
         out_dim=pitches,
-        nheads=4,
-        layers=10,
-        dropout=0.1,
+        nheads=arch["nheads"],
+        layers=arch["layers"],
+        dropout=arch["dropout"],
         max_len=max_len,
-        horizons=(1, 2, 3, 4),
-        pitcher_dim=24,
-        batter_dim=24,
-        embed_dim=10,
+        horizons=tuple(arch["horizons"]),
+        pitcher_dim=arch["pitcher_dim"],
+        batter_dim=arch["batter_dim"],
+        embed_dim=arch["embed_dim"],
         batter_seasons=batters,
         pitcher_seasons=pitchers,
     )
@@ -222,7 +225,7 @@ if __name__ == "__main__":
     total_steps = len(train_loader) * epochs
     muon_opti, adamw_opti, muon_sched, adamw_sched = make_optimizers(
         model,
-        lr=0.005,
+        lr=cfg["training"]["lr"],
         weight_decay=0.1,
         total_steps=total_steps,
         pct_start=1100 / total_steps,

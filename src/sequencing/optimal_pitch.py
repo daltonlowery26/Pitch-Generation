@@ -13,17 +13,16 @@ from src.sequencing.module.utils import (
     load_cvae,
     load_expectation,
     load_outcome,
-    load_yaml,
     lookup_player,
     parse_count,
     run_outcome_models,
 )
+from src.utils.config import load_config
 
 PITCH_GROUP_NAMES = {0: "fastball", 1: "breaking", 2: "offspeed"}
 
 
 def optimal_pitch(
-    config_path,
     pitch_map,
     pitcher,
     pitcher_year,
@@ -33,9 +32,7 @@ def optimal_pitch(
     prior_seq_len=5,
     n_samples=None,
 ):
-    cfg = load_yaml(config_path)
-
-    inf_cfg = cfg["inference"]
+    inf_cfg = load_config("pitch_sequencing")["inference"]
     if n_samples is None:
         n_samples = inf_cfg["n_cvae_samples"]
     temperature = inf_cfg["temperature"]
@@ -67,25 +64,25 @@ def optimal_pitch(
 
     rep_mask = repertoire_mask(df, n_pitcher_seasons, n_pitches).to(device)
 
-    cvae = load_cvae(cfg["models"]["cvae"], n_pitcher_seasons, n_pitches_cvae)
+    cvae = load_cvae(load_config("cvae"), n_pitcher_seasons, n_pitches_cvae)
     batter_exp = load_expectation(
-        cfg["models"]["expectation"],
+        load_config("expectation"),
         n_pitcher_seasons,
         n_batter_seasons,
         n_pitches,
         max_len,
     )
     swing_model = load_outcome(
-        cfg["models"]["swing"], 1, n_pitcher_seasons, n_batter_seasons
+        load_config("swing_prob"), 1, n_pitcher_seasons, n_batter_seasons
     )
     whiff_model = load_outcome(
-        cfg["models"]["whiff"], 1, n_pitcher_seasons, n_batter_seasons
+        load_config("whiff_prob"), 1, n_pitcher_seasons, n_batter_seasons
     )
     foul_model = load_outcome(
-        cfg["models"]["foul"], 1, n_pitcher_seasons, n_batter_seasons
+        load_config("foul_prob"), 1, n_pitcher_seasons, n_batter_seasons
     )
     bip_model = load_outcome(
-        cfg["models"]["bip_type"], 5, n_pitcher_seasons, n_batter_seasons
+        load_config("bip_type"), 5, n_pitcher_seasons, n_batter_seasons
     )
 
     _load_data()
@@ -137,18 +134,16 @@ def optimal_pitch(
 
 
 if __name__ == "__main__":
-    CONFIG_PATH = "config/optimal_pitch.yml"
     PITCH_MAP = "data/pitch/pitch_exp.parquet"
-    PITCHER = "Holmes, Clay"
+    PITCHER = "Warren, Will"
     PITCHER_YEAR = 2025
     BATTER = "Harper, Bryce"
     BATTER_YEAR = 2025
-    COUNT = "1-1"
-    PRIOR_SEQ = 2
+    COUNT = "1-0"
+    PRIOR_SEQ = 0
     N_SAMPLES = None
 
     results = optimal_pitch(
-        config_path=CONFIG_PATH,
         pitch_map=PITCH_MAP,
         pitcher=PITCHER,
         pitcher_year=PITCHER_YEAR,

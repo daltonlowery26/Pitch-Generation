@@ -12,6 +12,7 @@ from torch import nn
 
 from src.embeddings.pitch.modules.cvae import CVAE, cvae_loss
 from src.embeddings.pitch.modules.umap import UmapDataset, UmapLoss, umapGraph
+from src.utils.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
@@ -160,10 +161,10 @@ def train(
 
 
 if __name__ == "__main__":
-    # default params
-    epochs = 300
-    batch_size = 96000
     torch.set_float32_matmul_precision("high")
+    cfg = load_config("cvae")
+    epochs = cfg["training"]["epochs"]
+    batch_size = cfg["training"]["batch_size"]
 
     # %% input data consruction
     input = pl.read_parquet(
@@ -228,14 +229,15 @@ if __name__ == "__main__":
     steps_per_epoch = math.ceil(len(trainDataset) / batch_size)
     total_steps = steps_per_epoch * epochs
 
+    arch = cfg["arch"]
     model = CVAE(
-        input_dim=10,
-        pitch_dim=16,
-        pitcher_dim=16,
-        h_dim=64,
-        latent_dim=6,
-        dropout=0.1,
-        n_layers=8,
+        input_dim=arch["input_dim"],
+        pitch_dim=arch["pitch_dim"],
+        pitcher_dim=arch["pitcher_dim"],
+        h_dim=arch["h_dim"],
+        latent_dim=arch["latent_dim"],
+        dropout=arch["dropout"],
+        n_layers=arch["n_layers"],
         n_pitchers=pitchers,
         n_pitches=pitches,
     )
@@ -248,7 +250,7 @@ if __name__ == "__main__":
     # optimizer and lr sched
     muon, adamw, onecycle_muon, onecycle_adamw = make_optimizers(
         model,
-        lr=0.001,
+        lr=cfg["training"]["lr"],
         weight_decay=0.1,
         total_steps=total_steps,
         pct_start=1100 / total_steps,

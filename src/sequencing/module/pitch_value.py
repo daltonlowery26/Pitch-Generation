@@ -10,7 +10,7 @@ def _load_data():
     if _data is not None:
         return _data
     bipvalue = (
-        pl.read_csv("cleaned_data/metrics/re/bipvalue.csv")
+        pl.read_csv("data/cleaned/run_exp/bipvalue.csv")
         .pivot(on="bb_type", index="game_year", values="changeValue")
         .rename(
             {
@@ -19,8 +19,8 @@ def _load_data():
             }
         )
     )
-    bb_strikeout = pl.read_csv("cleaned_data/metrics/re/bbK.csv")
-    count_trans_value = pl.read_csv("cleaned_data/metrics/re/counttransvalue.csv")
+    bb_strikeout = pl.read_csv("data/cleaned/run_exp/bb_k_value.csv")
+    count_trans_value = pl.read_csv("data/cleaned/run_exp/count_change_run.csv")
     _data = (bipvalue, bb_strikeout, count_trans_value)
     return _data
 

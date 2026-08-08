@@ -1,0 +1,17 @@
+arch:
+  dim: 128
+  layers: 6
+  dropout: 0.1
+  nhead: 4
+  embed_dim: 10
+  countdim: 4
+  exp_dim: 3
+  abdim: 4
+  output_dim: 1
+  exp_proj_dim: 8
+  batter_dim: 16
+training:
+  lr: 0.005
+  batch_size: 8192
+  epochs: 30
+weight_path: weights/probs/swing_prob.pth

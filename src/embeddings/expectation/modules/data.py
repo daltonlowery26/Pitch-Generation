@@ -30,7 +30,7 @@ class UsageDataset(Dataset):
 
         # load embeds
         emb = df["genPitch"].explode().to_numpy().astype(np.float32).reshape(-1, 10)
-        pitch_group = df["pitch_group"].to_numpy().astype(np.int32)
+        pitch_group = df["pitch_name"].to_numpy().astype(np.int32)
 
         # train and labels
         self.embeds = torch.from_numpy(emb)
@@ -124,7 +124,7 @@ def load_usage_data(path, val_start: date, val_end: date, test_cutoff: date):
     # number of pitchers, batters, len
     pitchers = df["pitcher_year"].n_unique()
     batters = df["batter_year"].n_unique()
-    pitches = df["pitch_group"].n_unique()
+    pitches = df["pitch_name"].n_unique()
     max_len = df.group_by("pitchBatter").len().get_column("len").max()
 
     # create dataset and mask based on pitcher count

@@ -8,6 +8,7 @@ from src.embeddings.expectation.modules.data import UsageDataset, collate_fn
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward, repertoire_mask
 from src.embeddings.expectation.usage_embed import loadBatch
+from src.utils.config import load_config
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
@@ -26,17 +27,19 @@ def write_expectation(data_path, weights_path, output_path, device=device):
     mask = repertoire_mask(df, num_pitchers=pitchers, num_pitches=pitches).to(device)
 
     # load model
+    cfg = load_config("expectation")
+    arch = cfg["arch"]
     model = BatterExp(
-        dim=256,
+        dim=arch["dim"],
         out_dim=pitches,
-        nheads=8,
-        layers=8,
-        dropout=0.1,
+        nheads=arch["nheads"],
+        layers=arch["layers"],
+        dropout=arch["dropout"],
         max_len=max_len,
-        horizons=(1, 2, 3, 4),
-        pitcher_dim=64,
-        batter_dim=64,
-        embed_dim=64,
+        horizons=tuple(arch["horizons"]),
+        pitcher_dim=arch["pitcher_dim"],
+        batter_dim=arch["batter_dim"],
+        embed_dim=arch["embed_dim"],
         batter_seasons=batters,
         pitcher_seasons=pitchers,
     )
