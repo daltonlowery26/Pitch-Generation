@@ -1,4 +1,4 @@
-import numpy as np
+mport numpy as np
 import polars as pl
 import torch
 from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     # number of pitchers, batters, len
     pitchers = df["pitcher_year"].n_unique()
     batters = df["batter_year"].n_unique()
-    pitches = df["pitch_group"].n_unique()
+    pitches = df["pitch_name"].n_unique()
 
     data, train_loader, val_loader, test_loader = load_data(
         df, prefetch=4, workers=4, batch_size=cfg["training"]["batch_size"]

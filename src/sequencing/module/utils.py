@@ -41,6 +41,7 @@ def load_expectation(cfg, n_pitcher_seasons, n_batter_seasons, n_pitch_groups, m
         nheads=arch["nheads"],
         layers=arch["layers"],
         dropout=arch["dropout"],
+        attn_ffn_blocks=arch['attn_ffn_blocks'],
         max_len=max_len,
         horizons=tuple(arch["horizons"]),
         pitcher_dim=arch["pitcher_dim"],
@@ -96,7 +97,7 @@ def lookup_player(df, name, year, name_col, id_col):
 
 def get_pitcher_repertoire(df, pitcher_id_year):
     return (
-        df.filter(pl.col("pitcher_year") == pitcher_id_year)["pitch_group"]
+        df.filter(pl.col("pitcher_year") == pitcher_id_year)["pitch_name"]
         .unique()
         .sort()
         .to_list()

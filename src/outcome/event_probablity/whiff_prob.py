@@ -113,12 +113,14 @@ if __name__ == "__main__":
     epochs = cfg["training"]["epochs"]
 
     # preprocessing steps
-    df = pl.read_parquet("data/player/expectation.parquet")
+    df = pl.read_parquet("data/pitch/pitch_exp.parquet").with_columns(
+        pl.col("kmu").list.slice(0, 10)
+    )
 
     # number of pitchers, batters, len
     pitchers = df["pitcher_year"].n_unique()
     batters = df["batter_year"].n_unique()
-    pitches = df["pitch_group"].n_unique()
+    pitches = df["pitch_name"].n_unique()
 
     data, train_loader, val_loader, test_loader = load_data(
         df, prefetch=4, workers=4, batch_size=cfg["training"]["batch_size"]

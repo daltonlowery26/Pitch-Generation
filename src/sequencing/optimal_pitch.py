@@ -17,9 +17,7 @@ from src.sequencing.module.utils import (
     parse_count,
     run_outcome_models,
 )
-from src.utils.config import load_config
-
-PITCH_GROUP_NAMES = {0: "fastball", 1: "breaking", 2: "offspeed"}
+from src.utils.modeling.config import load_config
 
 
 def optimal_pitch(
@@ -44,7 +42,7 @@ def optimal_pitch(
 
     n_pitcher_seasons = df["pitcher_year"].n_unique()
     n_batter_seasons = df["batter_year"].n_unique()
-    n_pitches = df["pitch_group"].n_unique()
+    n_pitches = df["pitch_name"].n_unique()
     n_pitches_cvae = df["pitch_name"].n_unique()
     max_len = df.group_by("pitchBatter").len().get_column("len").max()
 
@@ -154,6 +152,11 @@ if __name__ == "__main__":
         n_samples=N_SAMPLES,
     )
 
+    df = pl.read_parquet(PITCH_MAP)
+    pitch_name_to_str = dict(
+        df.select(["pitch_name", "pitch_str"]).unique().rows()
+    )
+
     print(f"Pitcher: {PITCHER} ({PITCHER_YEAR})")
     print(f"Batter:  {BATTER} ({BATTER_YEAR})")
     print(f"Count:   {COUNT}")
@@ -161,9 +164,9 @@ if __name__ == "__main__":
 
     sorted_results = sorted(results.items(), key=lambda x: x[1])
     for pitch_type, rv in sorted_results:
-        name = PITCH_GROUP_NAMES.get(pitch_type, str(pitch_type))
-        print(f"  {name:<12} {rv:>14.4f}")
+        name = pitch_name_to_str.get(pitch_type, str(pitch_type))
+        print(f"  {name:<16} {rv:>14.4f}")
 
     best = sorted_results[0]
-    best_name = PITCH_GROUP_NAMES.get(best[0], str(best[0]))
+    best_name = pitch_name_to_str.get(best[0], str(best[0]))
     print(f"\n  Best: {best_name} ({best[1]:.4f})")

@@ -19,6 +19,7 @@ def tiny_model(dropout=0.0, max_len=32):
         out_dim=C,
         nheads=2,
         layers=2,
+        attn_ffn_blocks=2,
         dropout=dropout,
         max_len=max_len,
         horizons=HORIZONS,

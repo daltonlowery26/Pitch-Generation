@@ -1,7 +1,7 @@
 arch:
   dim: 128
   nheads: 4
-  layers: 5
+  layers: 4
   dropout: 0.1
   attn_ffn_blocks: 2
   horizons: [1, 2, 3, 4]
@@ -9,7 +9,7 @@ arch:
   batter_dim: 24
   embed_dim: 10
 training:
-  lr: 0.005
+  lr: 0.001
   batch_size: 4096
-  epochs: 25
-weight_path: weights/probs/usage.pth
+  epochs: 30
+weight_path: weights/usage.pth

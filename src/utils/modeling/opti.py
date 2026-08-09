@@ -56,6 +56,6 @@ def make_optimizers(
 
     mg, ag = groups(muon, lr), groups(adamw, lr)
     muon_opt = Muon(mg, lr=lr, momentum=muon_momentum, adjust_lr_fn="match_rms_adamw")
-    adamw_opt = AdamW(ag, lr=lr, betas=adamw_betas)
+    adamw_opt = AdamW(ag, lr=lr, betas=adamw_betas, weight_decay=weight_decay)
 
     return muon_opt, adamw_opt, sched(muon_opt, mg), sched(adamw_opt, ag)

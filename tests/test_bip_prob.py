@@ -19,6 +19,7 @@ def tiny_model(dropout=0.0):
         layers=2,
         dropout=dropout,
         nhead=2,
+        attn_fnn_block=2,
         embed_dim=PITCH_EMB_DIM,
         countdim=4,
         exp_dim=EXP_EMB_DIM,

@@ -113,5 +113,6 @@ class RoPE(nn.Module):
         attn = out.transpose(1, 2).reshape(B, T, self.dim)
 
         attn = self.attn_proj(attn)
+        attn = F.dropout(attn, p=self.dropout, training=self.training)
         out = attn + self.ffn(attn)
         return out

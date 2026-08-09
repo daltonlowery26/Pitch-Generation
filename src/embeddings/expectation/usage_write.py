@@ -19,7 +19,7 @@ def write_expectation(data_path, weights_path, output_path, device=device):
     # number of pitchers, batters, len
     pitchers = df["pitcher_year"].n_unique()
     batters = df["batter_year"].n_unique()
-    pitches = df["pitch_group"].n_unique()
+    pitches = df["pitch_name"].n_unique()
     max_len = df.group_by("pitchBatter").len().get_column("len").max()
 
     # usage dataset
@@ -34,6 +34,7 @@ def write_expectation(data_path, weights_path, output_path, device=device):
         out_dim=pitches,
         nheads=arch["nheads"],
         layers=arch["layers"],
+        attn_ffn_blocks=arch["attn_ffn_blocks"],
         dropout=arch["dropout"],
         max_len=max_len,
         horizons=tuple(arch["horizons"]),
@@ -92,7 +93,7 @@ def write_expectation(data_path, weights_path, output_path, device=device):
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
     write_expectation(
-        data_path="data/player/player.parquet",
+        data_path="data/pitch/pitch_map.parquet",
         weights_path="weights/usage.pth",
-        output_path="data/player/expectation.parquet",
+        output_path="data/pitch/pitch_exp.parquet",
     )

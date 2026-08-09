@@ -10,9 +10,9 @@ class OutcomeProb(Dataset):
         ids = torch.tensor(df["pitchBatter"].to_list())
 
         pitchEmb = (
-            df["pitchGen"].explode().to_numpy().astype(np.float32).reshape(-1, 10)
+            df["kmu"].explode().to_numpy().astype(np.float32).reshape(-1, 10)
         )
-        expEmb = df["expEmb"].explode().to_numpy().astype(np.float32).reshape(-1, 4)
+        expEmb = df["expEmb"].explode().to_numpy().astype(np.float32).reshape(-1, 13)
         bipLabel = (
             df["bipArr"]
             .explode()
@@ -136,7 +136,7 @@ def split_loaders(
     prefetch,
     workers,
     drop_last,
-    cutoff,
+    cutoff=datetime(2025, 7, 1).date(),
     bucket_size=None,
     pin=True,
 ):

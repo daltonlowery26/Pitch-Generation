@@ -64,7 +64,7 @@ def get(model, loader, repMask, device):
 def repertoire_mask(df, num_pitchers, num_pitches):
     df = df.sort(["pitcher_year"])
     mask = torch.zeros(num_pitchers, num_pitches, dtype=torch.bool)
-    for row in df.select(["pitcher_year", "pitch_group"]).unique().iter_rows():
+    for row in df.select(["pitcher_year", "pitch_name"]).unique().iter_rows():
         # pitcher, pitch, set mask to true
         mask[row[0], row[1]] = True
     return mask

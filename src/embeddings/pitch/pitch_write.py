@@ -52,13 +52,13 @@ if __name__ == "__main__":
         "vy0",
         "vz0",
         "pitcher_id_year",
-        "pitch_group",
+        "pitch_name",
     ]
     input = pl.read_parquet("data/source/pitch_2015_2026.parquet")
     input = input.drop_nulls(subset=features)
 
     pitchers = input["pitcher_year"].n_unique()
-    pitches = input["pitch_group"].n_unique()
+    pitches = input["pitch_name"].n_unique()
 
     # normalize
     input = input.with_columns(
