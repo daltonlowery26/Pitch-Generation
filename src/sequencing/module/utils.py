@@ -41,7 +41,7 @@ def load_expectation(cfg, n_pitcher_seasons, n_batter_seasons, n_pitch_groups, m
         nheads=arch["nheads"],
         layers=arch["layers"],
         dropout=arch["dropout"],
-        attn_ffn_blocks=arch['attn_ffn_blocks'],
+        attn_ffn_blocks=arch["attn_ffn_blocks"],
         max_len=max_len,
         horizons=tuple(arch["horizons"]),
         pitcher_dim=arch["pitcher_dim"],

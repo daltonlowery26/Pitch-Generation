@@ -2,13 +2,13 @@
 import numpy as np
 import polars as pl
 import torch
+from src.utils.config import load_config
 from torch.utils.data import DataLoader
 
 from src.embeddings.expectation.modules.data import UsageDataset, collate_fn
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward, repertoire_mask
 from src.embeddings.expectation.usage_embed import loadBatch
-from src.utils.config import load_config
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 

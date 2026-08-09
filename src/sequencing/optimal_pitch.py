@@ -153,9 +153,7 @@ if __name__ == "__main__":
     )
 
     df = pl.read_parquet(PITCH_MAP)
-    pitch_name_to_str = dict(
-        df.select(["pitch_name", "pitch_str"]).unique().rows()
-    )
+    pitch_name_to_str = dict(df.select(["pitch_name", "pitch_str"]).unique().rows())
 
     print(f"Pitcher: {PITCHER} ({PITCHER_YEAR})")
     print(f"Batter:  {BATTER} ({BATTER_YEAR})")

@@ -1,9 +1,9 @@
 # package
 import polars as pl
 import torch
+from src.utils.config import load_config
 
 from src.embeddings.pitch.modules.cvae import CVAE
-from src.utils.config import load_config
 
 
 # encode each pitch, then decode from its latent as the generative step

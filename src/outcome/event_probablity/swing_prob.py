@@ -1,4 +1,6 @@
-mport numpy as np
+from datetime import datetime
+
+import numpy as np
 import polars as pl
 import torch
 from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
@@ -9,7 +11,7 @@ from src.outcome.modules.seq_data import (
     split_loaders,
 )
 from src.outcome.modules.seq_transformer import Transformer
-from src.utils.config import load_config
+from src.utils.modeling.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
@@ -17,7 +19,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
 def load_data(df, prefetch, workers, batch_size):
     data = OutcomeProb(df)
-    return data, *split_loaders(data, df, batch_size, prefetch, workers, drop_last=True)
+    return data, *split_loaders(
+        data,
+        df,
+        batch_size,
+        prefetch,
+        workers,
+        cutoff=datetime(2025, 7, 1).date(),
+        drop_last=True,
+    )
 
 
 def forward(batch, model, device):
