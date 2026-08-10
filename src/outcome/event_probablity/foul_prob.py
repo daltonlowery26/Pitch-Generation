@@ -59,6 +59,7 @@ def train(
     adamw_sched,
     loss_fn,
     epochs,
+    label_smoothing,
 ):
     model.to(device)
     best_loss = np.inf
@@ -69,7 +70,9 @@ def train(
 
         for batch in train_loader:
             logits, labels, mask = forward(batch, model, device)
-            loss = loss_fn(logits[mask], labels[mask].float())
+            targets = labels[mask].float()
+            targets = targets * (1 - label_smoothing) + 0.5 * label_smoothing
+            loss = loss_fn(logits[mask], targets)
 
             muon_opti.zero_grad()
             adamw_opti.zero_grad()
@@ -88,7 +91,9 @@ def train(
         with torch.no_grad():
             for batch in val_loader:
                 logits, labels, mask = forward(batch, model, device)
-                val_loss += loss_fn(logits[mask], labels[mask].float()).item()
+                targets = labels[mask].float()
+                targets = targets * (1 - label_smoothing) + 0.5 * label_smoothing
+                val_loss += loss_fn(logits[mask], targets).item()
 
         avg_val_loss = val_loss / len(val_loader)
         if avg_val_loss < best_loss:
@@ -175,6 +180,7 @@ if __name__ == "__main__":
         adamw_sched,
         loss_fn,
         epochs=epochs,
+        label_smoothing=cfg["training"]["label_smoothing"],
     )
 
     model.load_state_dict(torch.load("weights/foul_prob.pth"))

@@ -49,6 +49,7 @@ class Transformer(nn.Module):
         self.abdim = abdim
         self.countdim = countdim
         self.expdim = exp_dim
+        self.dropout = nn.Dropout(dropout)
 
         # projecting pitcher exp
         self.expectation_proj = nn.Linear(exp_dim, exp_proj_dim)
@@ -70,6 +71,7 @@ class Transformer(nn.Module):
             nn.RMSNorm(self.input),
             nn.Linear(self.input, dim * 4),
             nn.SiLU(),
+            nn.Dropout(dropout),
             nn.Linear(dim * 4, dim),
         )
 
@@ -92,9 +94,11 @@ class Transformer(nn.Module):
             nn.RMSNorm(o_layer),
             nn.Linear(o_layer, dim * 4),
             nn.SiLU(),
+            nn.Dropout(dropout),
             nn.RMSNorm(dim * 4, elementwise_affine=True),
             nn.Linear(dim * 4, dim * 4),
             nn.SiLU(),
+            nn.Dropout(dropout),
             nn.Linear(dim * 4, output_dim),
         )
 
@@ -115,14 +119,14 @@ class Transformer(nn.Module):
         expEmb = self.expectation_proj(expEmb)
 
         # pitcher and batter embeddings
-        pitcherEmb = self.pitcher(pitcher_id)
-        batterEmb = self.batter(batter_id)
+        pitcherEmb = self.dropout(self.pitcher(pitcher_id))
+        batterEmb = self.dropout(self.batter(batter_id))
 
         # shift pitch based on context
         count_e = self.count_emb(count)
         atbat_e = self.ab_emb(atbat)
         context = torch.concat([count_e, atbat_e], dim=-1)
-        pitchEmb = self.contextFiLM(pitchEmb, context)
+        pitchEmb = self.dropout(self.contextFiLM(pitchEmb, context))
 
         # embedding, project
         pitcher_tok = pitcherEmb[:, :1]

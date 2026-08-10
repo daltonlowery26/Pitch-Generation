@@ -138,7 +138,9 @@ if __name__ == "__main__":
         df, prefetch=4, workers=4, batch_size=cfg["training"]["batch_size"]
     )
 
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.CrossEntropyLoss(
+        label_smoothing=cfg["training"]["label_smoothing"], ignore_index=-1
+    )
     arch = cfg["arch"]
     model = Transformer(
         dim=arch["dim"],
