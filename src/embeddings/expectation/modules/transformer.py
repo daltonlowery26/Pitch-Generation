@@ -52,6 +52,7 @@ class BatterExp(nn.Module):
         self.out_dim = out_dim
         self.max_len = max_len
         self.horizons = tuple(horizons)
+        self.dropout = nn.Dropout(dropout)
 
         # embeddings
         self.pitcher_embed = nn.Embedding(
@@ -80,6 +81,7 @@ class BatterExp(nn.Module):
             nn.RMSNorm(prior),
             nn.Linear(prior, dim * 4),
             nn.SiLU(),
+            nn.Dropout(dropout),
             nn.Linear(dim * 4, out_dim),
         )
 
@@ -88,6 +90,7 @@ class BatterExp(nn.Module):
             nn.RMSNorm(self.embedDim),
             nn.Linear(self.embedDim, dim * 4),
             nn.SiLU(),
+            nn.Dropout(dropout),
             nn.Linear(dim * 4, dim),
         )
 
@@ -107,6 +110,7 @@ class BatterExp(nn.Module):
                 for _ in range(layers)
             ]
         )
+
         self.w = nn.ModuleList([nn.Linear(dim, 1) for _ in range(layers)])
         for lin in self.w:
             nn.init.zeros_(lin.weight)
@@ -118,12 +122,10 @@ class BatterExp(nn.Module):
             nn.RMSNorm(out),
             nn.Linear(out, dim * 4),
             nn.SiLU(),
-            nn.RMSNorm(dim * 4),
-            nn.Linear(dim * 4, dim * 4),
-            nn.SiLU(),
-            nn.Linear(dim * 4, out_dim),
+            nn.Dropout(dropout),
+            nn.Linear(dim * 4, self.out_dim),
         )
-        tag(self)
+        tag(self.out[4], no_muon=True)
 
     # first pitch of atbat
     def get_prior(self, pitcherIds, batterIds, repMask):
@@ -157,13 +159,13 @@ class BatterExp(nn.Module):
         pitcher_embed = self.pitcher_proj(pitcher_embed)
 
         # batter embeddings
-        batter_embed = self.batter_embed(batterID)
+        batter_embed = self.dropout(self.batter_embed(batterID))
 
         # create context rep, shift and scale
         count_e = self.count_emb(count)
         ab_e = self.ab_emb(abNum)
         context = torch.cat([count_e, ab_e], dim=-1)
-        embed = self.context_film(embed, context)
+        embed = self.dropout(self.context_film(embed, context))
 
         # input projection given pitch and pitcher
         pitcher_tok = pitcher_embed[:, :1]

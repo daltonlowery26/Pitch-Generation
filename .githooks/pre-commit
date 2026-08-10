@@ -6,3 +6,6 @@ uv run ruff format .
 
 echo "pre-commit: running ruff check --fix..."
 uv run ruff check --fix .
+
+echo "pre-push: running smoke tests..."
+uv run pytest tests/ -q

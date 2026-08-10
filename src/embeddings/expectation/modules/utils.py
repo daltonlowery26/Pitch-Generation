@@ -71,7 +71,9 @@ def repertoire_mask(df, num_pitchers, num_pitches):
 
 
 # multistep loss, consider times t + 1 + 2 + 3
-def multistep_loss(logits, labels, lengths, horizons, weights, ignore_index=-1):
+def multistep_loss(
+    logits, labels, lengths, horizons, weights, label_smoothing=0.0, ignore_index=-1
+):
     B, _, T, C = logits.shape
 
     # check if pos is within valid range
@@ -95,7 +97,9 @@ def multistep_loss(logits, labels, lengths, horizons, weights, ignore_index=-1):
 
         # comput loss if valid indexes
         if (ti != ignore_index).any():
-            loss_k = F.cross_entropy(li, ti, ignore_index=ignore_index)
+            loss_k = F.cross_entropy(
+                li, ti, ignore_index=ignore_index, label_smoothing=label_smoothing
+            )
         else:
             loss_k = logits.new_zeros(())
 

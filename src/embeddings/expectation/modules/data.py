@@ -29,7 +29,7 @@ class UsageDataset(Dataset):
         ids = torch.from_numpy(df["pitchBatter"].to_numpy())
 
         # load embeds
-        emb = df["genPitch"].explode().to_numpy().astype(np.float32).reshape(-1, 10)
+        emb = df["kmu"].explode().to_numpy().astype(np.float32).reshape(-1, 10)
         pitch_group = df["pitch_name"].to_numpy().astype(np.int32)
 
         # train and labels
@@ -119,7 +119,7 @@ def collate_fn(batch):
 
 
 def load_usage_data(path, val_start: date, val_end: date, test_cutoff: date):
-    df = pl.read_parquet(path)
+    df = pl.read_parquet(path).with_columns(pl.col("kmu").list.slice(0, 10))
 
     # number of pitchers, batters, len
     pitchers = df["pitcher_year"].n_unique()

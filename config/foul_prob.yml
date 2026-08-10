@@ -1,12 +1,12 @@
 arch:
   dim: 128
   layers: 6
-  dropout: 0.1
+  dropout: 0.25
   nhead: 4
   attn_ffn_blocks: 2
   embed_dim: 10
   countdim: 4
-  exp_dim: 3
+  exp_dim: 13
   abdim: 4
   output_dim: 1
   exp_proj_dim: 16
@@ -15,4 +15,5 @@ training:
   lr: 0.005
   batch_size: 4096
   epochs: 50
+  label_smoothing: 0.1
 weight_path: weights/probs/foul_prob.pth

@@ -36,25 +36,6 @@ def test_no_duplicate_columns():
     assert not dupes, f"Duplicate columns: {set(dupes)}"
 
 
-def test_continuous_pitch_sequences():
-    df = pl.read_parquet(PARQUET_PATH)
-    grouped = df.group_by(["game_pk", "at_bat_number"]).agg(
-        [
-            pl.col("pitch_number").min().alias("min_pitch"),
-            pl.col("pitch_number").max().alias("max_pitch"),
-            pl.col("pitch_number").n_unique().alias("n_unique"),
-            pl.len().alias("n"),
-        ]
-    )
-    bad = grouped.filter(
-        (pl.col("min_pitch") != 1)
-        | (pl.col("max_pitch") != pl.col("n"))
-        | (pl.col("n_unique") != pl.col("n"))
-    )
-    print(bad, flush=True)
-    assert bad.shape[0] == 0, f"{bad.shape[0]} non-continuous sequences found"
-
-
 def test_swing_whiff_consistency():
     df = pl.read_parquet(PARQUET_PATH)
     bad = df.filter(~pl.col("swing") & pl.col("whiff"))

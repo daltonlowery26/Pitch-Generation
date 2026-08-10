@@ -15,7 +15,7 @@ from src.embeddings.expectation.modules.utils import (
     loadBatch,
     multistep_loss,
 )
-from src.utils.config import load_config
+from src.utils.modeling.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
@@ -50,7 +50,11 @@ def forwardLoss(model, batch, repMask, i1, aux_h, aux_w, h1_w, aux=True):
         return h1_loss, h1_loss
 
     aux_loss, _ = multistep_loss(
-        logits[:, 1:], batch["labels"], batch["lengths"], aux_h, weights=aux_w
+        logits[:, 1:],
+        batch["labels"],
+        batch["lengths"],
+        aux_h,
+        weights=aux_w,
     )
     loss = h1_w * h1_loss + aux_loss
     return loss, h1_loss
@@ -105,7 +109,14 @@ def usageTrain(
             for valFeat in valLoader:
                 batch = loadBatch(valFeat, device)
                 _, h1 = forwardLoss(
-                    model, batch, repMask, i1, aux_h, aux_w, h1_w, aux=False
+                    model,
+                    batch,
+                    repMask,
+                    i1,
+                    aux_h,
+                    aux_w,
+                    h1_w,
+                    aux=False,
                 )
                 val_loss += h1.detach()
         avg_val_loss = val_loss.item() / len(valLoader)
@@ -156,7 +167,7 @@ if __name__ == "__main__":
     test_cutoff = datetime(2025, 7, 1).date()
 
     data = load_usage_data(
-        "data/player/player.parquet",
+        "data/pitch/pitch_map.parquet",
         val_start,
         val_end,
         test_cutoff,
@@ -200,9 +211,6 @@ if __name__ == "__main__":
         collate_fn=collate_fn,
     )
 
-    # model set up
-    loss_fn = nn.CrossEntropyLoss()
-
     arch = cfg["arch"]
     model = BatterExp(
         dim=arch["dim"],
@@ -221,6 +229,7 @@ if __name__ == "__main__":
     )
     model.to(device)
     print(sum(p.numel() for p in model.parameters() if p.requires_grad))
+    print(model.out_dim, flush=True)
 
     # one cycle
     total_steps = len(train_loader) * epochs

@@ -91,9 +91,18 @@ def optimal_pitch(
         df, pitcher_id_year, batter_id_year, prior_seq_len, count
     )
 
+    prior_info = None
     if prior is not None:
         prior["pitcher_id"] = pitcher_id_year
         prior["batter_id"] = batter_id_year
+        prior_info = {
+            "pitch_str": prior["pitch_str"],
+            "description": prior["description"],
+            "counts": [
+                dict(zip(["balls", "strikes"], divmod(c, 3)))
+                for c in prior["count"].tolist()
+            ],
+        }
 
     prior_exp, candidate_exp = compute_expectation(
         batter_exp, prior, rep_mask, pitcher_id_year, batter_id_year
@@ -128,7 +137,7 @@ def optimal_pitch(
         )
         results[pitch_type] = float(run_values.mean())
 
-    return results
+    return results, prior_info
 
 
 if __name__ == "__main__":
@@ -141,7 +150,7 @@ if __name__ == "__main__":
     PRIOR_SEQ = 0
     N_SAMPLES = None
 
-    results = optimal_pitch(
+    results, prior_info = optimal_pitch(
         pitch_map=PITCH_MAP,
         pitcher=PITCHER,
         pitcher_year=PITCHER_YEAR,
@@ -154,6 +163,17 @@ if __name__ == "__main__":
 
     df = pl.read_parquet(PITCH_MAP)
     pitch_name_to_str = dict(df.select(["pitch_name", "pitch_str"]).unique().rows())
+
+    if prior_info is not None and prior_info["pitch_str"]:
+        print("Prior pitches:")
+        for i, (p_str, desc, cnt) in enumerate(
+            zip(
+                prior_info["pitch_str"], prior_info["description"], prior_info["counts"]
+            ),
+            1,
+        ):
+            print(f"  {i}. {p_str:<16} → {desc} ({cnt['balls']}-{cnt['strikes']})")
+        print()
 
     print(f"Pitcher: {PITCHER} ({PITCHER_YEAR})")
     print(f"Batter:  {BATTER} ({BATTER_YEAR})")

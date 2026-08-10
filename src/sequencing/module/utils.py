@@ -134,6 +134,8 @@ def get_prior_sequence(
     pitch_emb = np.stack(seq["genPitch"].to_list()).astype(np.float32)
     counts = seq["countArr"].to_numpy().astype(np.int32)
     atbats = seq["atBatNumber"].to_numpy().astype(np.int32)
+    pitch_strs = seq["pitch_str"].to_list()
+    descriptions = seq["description"].to_list()
 
     c_str, c_arr = parse_count(current_count_str)
 
@@ -141,6 +143,8 @@ def get_prior_sequence(
         "pitchEmb": pitch_emb,
         "count": counts,
         "atbat": atbats,
+        "pitch_str": pitch_strs,
+        "description": descriptions,
         "current_count": c_arr,
         "current_count_str": c_str,
         "seq_len": len(seq),
