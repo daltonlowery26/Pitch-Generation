@@ -1,7 +1,6 @@
 import yaml
 
 
-def load_config(name):
-    path = f"config/{name}.yml"
+def load_config(path):
     with open(path) as f:
         return yaml.safe_load(f)

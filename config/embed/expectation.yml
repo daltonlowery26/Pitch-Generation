@@ -11,6 +11,6 @@ arch:
 training:
   lr: 0.001
   batch_size: 4096
-  epochs: 30
+  epochs: 300
   label_smoothing: 0.1
 weight_path: weights/usage.pth

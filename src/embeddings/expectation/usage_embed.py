@@ -158,7 +158,7 @@ def usageTest(model, test_loader, repMask, device=device):
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
-    cfg = load_config("expectation")
+    cfg = load_config("config/embed/expectation.yml")
     batch_size = cfg["training"]["batch_size"]
     epochs = cfg["training"]["epochs"]
 

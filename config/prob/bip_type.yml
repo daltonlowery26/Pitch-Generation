@@ -1,7 +1,7 @@
 arch:
-  dim: 128
-  layers: 6
-  dropout: 0.25
+  dim: 256
+  layers: 4
+  dropout: 0.2
   nhead: 4
   attn_ffn_blocks: 2
   embed_dim: 10
@@ -16,4 +16,4 @@ training:
   batch_size: 4096
   epochs: 50
   label_smoothing: 0.1
-weight_path: weights/probs/bip_type.pth
+weight_path: weights/bip_type.pth

@@ -125,7 +125,7 @@ def test(model, test_loader, masking=True):
 
 
 if __name__ == "__main__":
-    cfg = load_config("foul_prob")
+    cfg = load_config("config/prob/foul_prob.yml")
     epochs = cfg["training"]["epochs"]
 
     # preprocessing steps

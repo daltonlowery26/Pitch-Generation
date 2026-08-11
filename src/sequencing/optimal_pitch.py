@@ -30,7 +30,7 @@ def optimal_pitch(
     prior_seq_len=5,
     n_samples=None,
 ):
-    inf_cfg = load_config("pitch_sequencing")["inference"]
+    inf_cfg = load_config("config/test/pitch_sequencing.yml")["inference"]
     if n_samples is None:
         n_samples = inf_cfg["n_cvae_samples"]
     temperature = inf_cfg["temperature"]
@@ -62,25 +62,33 @@ def optimal_pitch(
 
     rep_mask = repertoire_mask(df, n_pitcher_seasons, n_pitches).to(device)
 
-    cvae = load_cvae(load_config("cvae"), n_pitcher_seasons, n_pitches_cvae)
+    cvae = load_cvae(
+        load_config("config/embed/cvae.yml"), n_pitcher_seasons, n_pitches_cvae
+    )
     batter_exp = load_expectation(
-        load_config("expectation"),
+        load_config("config/embed/expectation.yml"),
         n_pitcher_seasons,
         n_batter_seasons,
         n_pitches,
         max_len,
     )
     swing_model = load_outcome(
-        load_config("swing_prob"), 1, n_pitcher_seasons, n_batter_seasons
+        load_config("config/prob/swing_prob.yml"),
+        1,
+        n_pitcher_seasons,
+        n_batter_seasons,
     )
     whiff_model = load_outcome(
-        load_config("whiff_prob"), 1, n_pitcher_seasons, n_batter_seasons
+        load_config("config/prob/whiff_prob.yml"),
+        1,
+        n_pitcher_seasons,
+        n_batter_seasons,
     )
     foul_model = load_outcome(
-        load_config("foul_prob"), 1, n_pitcher_seasons, n_batter_seasons
+        load_config("config/prob/foul_prob.yml"), 1, n_pitcher_seasons, n_batter_seasons
     )
     bip_model = load_outcome(
-        load_config("bip_type"), 5, n_pitcher_seasons, n_batter_seasons
+        load_config("config/prob/bip_type.yml"), 5, n_pitcher_seasons, n_batter_seasons
     )
 
     _load_data()

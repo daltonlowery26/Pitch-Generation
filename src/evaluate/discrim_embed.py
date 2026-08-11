@@ -105,7 +105,7 @@ def evaluate(model, testloader):
 
 
 if __name__ == "__main__":
-    cfg = load_config("eval_embed")
+    cfg = load_config("config/test/eval_embed.yml")
 
     df = pl.read_parquet(cfg["data_path"])
 
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     pitchers = df["pitcher_year"].n_unique()
     pitches = df["pitch_name"].n_unique()
 
-    cvae_cfg = load_config("cvae")
+    cvae_cfg = load_config("config/embed/cvae.yml")
     arch = cvae_cfg["arch"]
     cvae = CVAE(
         input_dim=arch["input_dim"],

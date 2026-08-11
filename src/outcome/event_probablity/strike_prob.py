@@ -15,12 +15,12 @@ device = "cuda" if torch.cuda.is_available() else "mps"
 
 def forward_pass(model, batch, loss_fn):
     # load data
-    pitch = batch["embed"].to(device, non_blocking=True)
+    pitch = batch["pitch"].to(device, non_blocking=True)
     label = batch["label"].to(device, non_blocking=True)
 
     # model pass & loss
     logits = model(pitch)
-    loss = loss_fn(logits, label)
+    loss = loss_fn(logits, label.reshape(-1, 1))
 
     return loss
 
@@ -37,7 +37,6 @@ def train(
     muon_sched,
 ):
     model.to(device)
-    c_model = torch.compile(model)
 
     best_loss = np.inf
 
@@ -46,7 +45,7 @@ def train(
         model.train()
 
         for batch in trainloader:
-            loss = forward_pass(c_model, batch, lossfn)
+            loss = forward_pass(model, batch, lossfn)
 
             adam_opti.zero_grad()
             muon_opti.zero_grad()
@@ -66,11 +65,11 @@ def train(
 
         model.eval()
         for batch in valloader:
-            loss = forward_pass(c_model, batch, lossfn)
+            loss = forward_pass(model, batch, lossfn)
             val_loss += loss
 
         val_loss = val_loss.item() / len(valloader)
-        print(f"epoch {epoch}, val {val_loss}, train {train_loss}", flush=True)
+        print(f"epoch {epoch}, val {val_loss:3f}, train {train_loss:3f}", flush=True)
 
         if val_loss < best_loss:
             torch.save({"model_state_dict": model.state_dict()}, "weights/strike_prob")
@@ -78,7 +77,7 @@ def train(
 
 
 if __name__ == "__main__":
-    cfg = load_config("strike_prob")
+    cfg = load_config("config/prob/strike_prob.yml")
 
     df = pl.read_parquet("data/pitch/pitch_exp.parquet")
     df = preprocess(df, hbp=False)
@@ -88,7 +87,7 @@ if __name__ == "__main__":
         df=df,
         label="ball",
         cutoff=testcutoff,
-        batch_size=4096,
+        batch_size=512,
         prefetch=4,
         workers=4,
         drop_last=False,
@@ -110,7 +109,7 @@ if __name__ == "__main__":
         pct_start=1100 / total_steps,
     )
 
-    lossfn = nn.MSELoss()
+    lossfn = nn.BCEWithLogitsLoss()
 
     train(
         model=model,

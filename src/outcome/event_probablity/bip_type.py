@@ -121,7 +121,7 @@ def test(model, test_loader, masking=True):
 
 
 if __name__ == "__main__":
-    cfg = load_config("bip_type")
+    cfg = load_config("config/prob/bip_type.yml")
     epochs = cfg["training"]["epochs"]
 
     # preprocessing steps

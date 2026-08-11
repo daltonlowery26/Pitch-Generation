@@ -1,7 +1,7 @@
 arch:
-  dim: 128
-  layers: 6
-  dropout: 0.2
+  dim: 256
+  layers: 4
+  dropout: 0.15
   nhead: 4
   attn_ffn_blocks: 2
   embed_dim: 10
@@ -12,8 +12,8 @@ arch:
   exp_proj_dim: 8
   batter_dim: 16
 training:
-  lr: 0.005
-  batch_size: 8192
-  epochs: 30
+  lr: 0.001
+  batch_size: 4096
+  epochs: 300
   label_smoothing: 0.1
 weight_path: weights/probs/swing_prob.pth

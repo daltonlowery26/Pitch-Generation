@@ -8,11 +8,11 @@ import numpy as np
 import polars as pl
 import scipy.sparse as sp
 import torch
-from src.utils.config import load_config
 from torch import nn
 
 from src.embeddings.pitch.modules.cvae import CVAE, cvae_loss
 from src.embeddings.pitch.modules.umap import UmapDataset, UmapLoss, umapGraph
+from src.utils.modeling.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
@@ -162,7 +162,7 @@ def train(
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
-    cfg = load_config("cvae")
+    cfg = load_config("config/embed/cvae.yml")
     epochs = cfg["training"]["epochs"]
     batch_size = cfg["training"]["batch_size"]
 
