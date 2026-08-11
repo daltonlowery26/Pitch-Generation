@@ -41,9 +41,7 @@ class DiscrimDataset(Dataset):
     def __init__(self, real, fake):
         self.embed = torch.from_numpy(np.concatenate([real, fake]))
         self.label = torch.from_numpy(
-            np.concatenate([np.ones(len(real)), np.zeros(len(fake))]).astype(
-                np.float32
-            )
+            np.concatenate([np.ones(len(real)), np.zeros(len(fake))]).astype(np.float32)
         )
 
     def __len__(self):
@@ -67,12 +65,10 @@ def split_loaders(
     drop_last,
     pin=True,
 ):
-    df = df.with_columns(
-        pl.col('kmu').list.slice(0, 10)
-    )
-    
+    df = df.with_columns(pl.col("kmu").list.slice(0, 10))
+
     tv = df.with_row_index(name="ridx").filter(pl.col("game_date") < cutoff)
-    
+
     train_subset = tv.sample(fraction=0.8, seed=26)
     val_subset = tv.filter(~pl.col("ridx").is_in(train_subset["ridx"]))
     test_subset = df.filter(pl.col("game_date") >= cutoff)

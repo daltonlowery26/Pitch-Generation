@@ -6,11 +6,11 @@ import torch
 from sklearn.metrics import log_loss
 from torch import nn
 
-from src.outcome.modules.seq_data import (
+from src.outcome.modules.seq.seq_data import (
     OutcomeProb,
     split_loaders,
 )
-from src.outcome.modules.seq_transformer import Transformer
+from src.outcome.modules.seq.seq_transformer import Transformer
 from src.utils.modeling.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
@@ -66,7 +66,7 @@ def train(
 
     for epoch in range(epochs):
         model.train()
-        total_loss = 0.0
+        total_loss = torch.zeros((), device=device)
 
         for batch in train_loader:
             logits, labels, mask = forward(batch, model, device)
@@ -80,16 +80,16 @@ def train(
             adamw_opti.step()
             muon_sched.step()
             adamw_sched.step()
-            total_loss += loss.item()
+            total_loss += loss.detach()
 
-        train_loss = total_loss / len(train_loader)
+        train_loss = total_loss.item() / len(train_loader)
 
         model.eval()
-        val_loss = 0.0
+        val_loss = torch.zeros((), device=device)
         with torch.no_grad():
             for batch in val_loader:
                 logits, labels, mask = forward(batch, model, device)
-                val_loss += loss_fn(logits[mask], labels[mask].float()).item()
+                val_loss += loss_fn(logits[mask], labels[mask].float()).detach()
 
         avg_val_loss = val_loss / len(val_loader)
         if avg_val_loss < best_loss:

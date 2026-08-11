@@ -8,11 +8,11 @@ import numpy as np
 import polars as pl
 import scipy.sparse as sp
 import torch
+from src.utils.config import load_config
 from torch import nn
 
 from src.embeddings.pitch.modules.cvae import CVAE, cvae_loss
 from src.embeddings.pitch.modules.umap import UmapDataset, UmapLoss, umapGraph
-from src.utils.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
@@ -99,7 +99,7 @@ def train(
         n_train_batches = train_heads.numel() // batchsize
 
         # train
-        total_loss = 0.0
+        total_loss = torch.zeros((), device=device)
         model.train()
         for h_index, t_index in indexs(
             train_heads, train_tails, batchsize, device, gen, shuffle=True
@@ -128,7 +128,7 @@ def train(
         train_loss = (total_loss / n_train_batches).item()
 
         # validation
-        val_loss = 0.0
+        val_loss = torch.zeros((), device=device)
         model.eval()
         with torch.inference_mode():
             for h_index, t_index in indexs(

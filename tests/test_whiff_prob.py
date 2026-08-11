@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from src.outcome.modules.seq_transformer import Transformer
+from src.outcome.modules.seq.seq_transformer import Transformer
 
 DEVICE = "cpu"
 PITCH_EMB_DIM = 10
