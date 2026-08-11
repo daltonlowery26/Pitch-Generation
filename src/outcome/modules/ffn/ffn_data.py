@@ -26,17 +26,19 @@ def preprocess(df, hbp=False):
 
 class HBPStrikeData(Dataset):
     def __init__(self, df, label):
+        super().__init__()
+
         # pitch embed
         kmu = df["kmu"].explode().to_numpy().astype(np.float32).reshape(-1, 10)
         self.pitch = torch.from_numpy(kmu)
 
         # label
-        self.label = torch.from_numpy(df[label].to_numpy().astype(np.int32))
+        self.label = torch.from_numpy(df[label].to_numpy().astype(np.float32))
 
     def __len__(self):
         return len(self.label)
 
-    def __getitems__(self, idx):
+    def __getitem__(self, idx):
         return {"pitch": self.pitch[idx], "label": self.label[idx]}
 
 
@@ -56,8 +58,8 @@ def split_loaders(
     val_subset = tv.filter(~pl.col("ridx").is_in(train_subset["ridx"]))
     test_subset = df.filter(pl.col("game_date") > cutoff)
 
-    train_subset = train_subset.drop("_rn")
-    val_subset = val_subset.drop("_rn")
+    train_subset = train_subset.drop("ridx")
+    val_subset = val_subset.drop("ridx")
 
     train_ds = HBPStrikeData(train_subset, label)
     val_ds = HBPStrikeData(val_subset, label)
@@ -70,7 +72,6 @@ def split_loaders(
         num_workers=workers,
         prefetch_factor=prefetch,
         drop_last=drop_last,
-        pin_memory=pin,
     )
     val_loader = DataLoader(
         val_ds,
@@ -79,7 +80,6 @@ def split_loaders(
         num_workers=workers,
         prefetch_factor=prefetch,
         drop_last=False,
-        pin_memory=pin,
     )
     test_loader = DataLoader(
         test_ds,
@@ -88,7 +88,6 @@ def split_loaders(
         num_workers=workers,
         prefetch_factor=prefetch,
         drop_last=False,
-        pin_memory=pin,
     )
 
     return train_loader, val_loader, test_loader

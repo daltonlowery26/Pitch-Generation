@@ -6,7 +6,7 @@ class Residual(nn.Module):
         super().__init__()
         self.block = block
 
-    def __forward(self, x):
+    def forward(self, x):
         return x + self.block(x)
 
 
@@ -20,7 +20,7 @@ class Pitch_Predict(nn.Module):
         self.blocks = blocks
 
         # standard input
-        struct = [nn.Sequential(nn.RMSNorm(inp), nn.Linear(dim, dim * 4), nn.SiLU())]
+        struct = [nn.Sequential(nn.RMSNorm(inp), nn.Linear(inp, dim * 4), nn.SiLU())]
 
         # allow for specification of feed forward
         for _ in range(blocks):
@@ -35,5 +35,5 @@ class Pitch_Predict(nn.Module):
         struct.append(nn.Linear(dim * 4, out))
         self.layers = nn.Sequential(*struct)
 
-    def __forward__(self, embed):
+    def forward(self, embed):
         return self.layers(embed)
