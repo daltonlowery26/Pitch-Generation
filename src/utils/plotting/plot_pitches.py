@@ -50,7 +50,7 @@ def plot(data, model, n_samples_per_type=200, temperature=1.0):
     pitcher_types = sorted(
         type_counts.filter(pl.col("len") > 10)["pitch_name"].to_list()
     )
-    pitch_name_to_str = dict(data.select(["pitch_name", "pitch_str"]).unique().rows())
+    pitch_name_to_str = dict(data.select(["pitch_name", "pitch_type"]).unique().rows())
 
     real_traits = np.array(pitcher_data["kmu"].to_list())
     real_traits_10 = real_traits[:, :10]

@@ -5,22 +5,25 @@ import polars as pl
 import torch
 from torch import nn
 
-from src.outcome.modules.ffn.ffn_data import preprocess, split_loaders
-from src.outcome.modules.ffn.ffn_model import Pitch_Predict
+from src.outcome.modules.data.strike_HBP_data import preprocess, split_loaders
+from src.outcome.modules.models.mlp import MLP
 from src.utils.modeling.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = "cuda" if torch.cuda.is_available() else "mps"
 
 
-def forward_pass(model, batch, loss_fn):
+def forward_pass(model, batch, loss_fn, label_smoothing):
     # load data
     pitch = batch["pitch"].to(device, non_blocking=True)
     label = batch["label"].to(device, non_blocking=True)
 
     # model pass & loss
     logits = model(pitch)
-    loss = loss_fn(logits, label.reshape(-1, 1))
+
+    label = label.reshape(-1, 1)
+    label = label * (1 - label_smoothing) + 0.5 * label_smoothing
+    loss = loss_fn(logits, label)
 
     return loss
 
@@ -30,6 +33,7 @@ def train(
     trainloader,
     valloader,
     epochs,
+    label_smoothing,
     lossfn,
     adam_opti,
     muon_opti,
@@ -45,7 +49,7 @@ def train(
         model.train()
 
         for batch in trainloader:
-            loss = forward_pass(model, batch, lossfn)
+            loss = forward_pass(model, batch, lossfn, label_smoothing=label_smoothing)
 
             adam_opti.zero_grad()
             muon_opti.zero_grad()
@@ -65,7 +69,7 @@ def train(
 
         model.eval()
         for batch in valloader:
-            loss = forward_pass(model, batch, lossfn)
+            loss = forward_pass(model, batch, lossfn, label_smoothing=0.0)
             val_loss += loss
 
         val_loss = val_loss.item() / len(valloader)
@@ -87,13 +91,13 @@ if __name__ == "__main__":
         df=df,
         label="ball",
         cutoff=testcutoff,
-        batch_size=512,
+        batch_size=256,
         prefetch=4,
         workers=4,
         drop_last=False,
     )
 
-    model = Pitch_Predict(
+    model = MLP(
         inp=cfg["arch"]["inp"],
         out=cfg["arch"]["out"],
         dim=cfg["arch"]["dim"],
@@ -116,6 +120,7 @@ if __name__ == "__main__":
         trainloader=trainLoader,
         valloader=valLoader,
         epochs=cfg["training"]["epochs"],
+        label_smoothing=cfg["training"]["smoothing"],
         lossfn=lossfn,
         adam_opti=adamw_opt,
         muon_opti=muon_opt,

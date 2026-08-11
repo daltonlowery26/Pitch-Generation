@@ -6,11 +6,11 @@ import torch
 from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
 from torch import nn
 
-from src.outcome.modules.seq.seq_data import (
+from src.outcome.modules.data.outcome_data import (
     OutcomeProb,
     split_loaders,
 )
-from src.outcome.modules.seq.seq_transformer import Transformer
+from src.outcome.modules.models.transformer import Transformer
 from src.utils.modeling.config import load_config
 from src.utils.modeling.opti import make_optimizers
 

@@ -1,12 +1,12 @@
 import numpy as np
 import polars as pl
 import torch
-from src.outcome.modules.models.mlp import MLP
-from src.outcome.modules.models.transformer import Transformer
 
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward
 from src.embeddings.pitch.modules.cvae import CVAE
+from src.outcome.modules.models.mlp import MLP
+from src.outcome.modules.models.transformer import Transformer
 from src.sequencing.module.pitch_value import pitch_value
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
