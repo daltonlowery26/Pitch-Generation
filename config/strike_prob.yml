@@ -1,0 +1,9 @@
+arch:
+  inp: 10
+  out: 1
+  dim: 128
+  blocks: 4
+training:
+  epochs: 300
+  lr: 0.001
+  
