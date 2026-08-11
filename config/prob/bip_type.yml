@@ -16,4 +16,4 @@ training:
   batch_size: 4096
   epochs: 50
   label_smoothing: 0.1
-weight_path: weights/bip_type.pth
+weight_path: weights/probs/bip_type.pth

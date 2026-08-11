@@ -13,4 +13,4 @@ training:
   batch_size: 4096
   epochs: 300
   label_smoothing: 0.1
-weight_path: weights/usage.pth
+weight_path: weights/embed/usage.pth
