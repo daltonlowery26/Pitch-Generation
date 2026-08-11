@@ -10,7 +10,7 @@ class Residual(nn.Module):
         return x + self.block(x)
 
 
-class Pitch_Predict(nn.Module):
+class MLP(nn.Module):
     def __init__(self, inp, out, dim, blocks):
         super().__init__()
         # model vars
