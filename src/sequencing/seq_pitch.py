@@ -163,9 +163,7 @@ def build_prior_sequence_tui(df, pitcher, pitcher_year, batter, batter_year):
         df, pitcher, pitcher_year, "pitcher_name", "pitcher_year"
     )
     repertoire = get_pitcher_repertoire(df, pitcher_id_year)
-    pitch_name_to_str = dict(
-        df.select(["pitch_name", "pitch_type"]).unique().rows()
-    )
+    pitch_name_to_str = dict(df.select(["pitch_name", "pitch_type"]).unique().rows())
 
     numbered_repertoire = {}
     for i, name in enumerate(sorted(repertoire), 1):
@@ -189,8 +187,7 @@ def build_prior_sequence_tui(df, pitcher, pitcher_year, batter, batter_year):
         print(f"Count: {count_str}  |  Pitches: {len(sequence)}")
         if sequence:
             items = ", ".join(
-                f"{pitch_name_to_str.get(n, str(n))} \u2192 {r}"
-                for n, r in sequence
+                f"{pitch_name_to_str.get(n, str(n))} \u2192 {r}" for n, r in sequence
             )
             print(f"  [{items}]")
 
@@ -269,7 +266,7 @@ if __name__ == "__main__":
         pitcher_year=PITCHER_YEAR,
         batter=BATTER,
         batter_year=BATTER_YEAR,
-        prior_sequence=sequence if sequence else None
+        prior_sequence=sequence if sequence else None,
     )
 
     if prior_info is not None and prior_info["pitch_type"]:
@@ -297,5 +294,9 @@ if __name__ == "__main__":
     best_name = pitch_name_to_str.get(best[0], str(best[0]))
     best_probs = probs[best[0]]
     print(f"\nBest: {best_name} ({best[1]:.4f})")
-    print(f"  Swing: {best_probs['swing']:.4f}  |  Whiff: {best_probs['whiff']:.4f}  |  Foul: {best_probs['foul']:.4f}  |  Strike: {best_probs['strike']:.4f}")
-    print(f"  BIP:   LD {best_probs['bip'][2]:.4f}  |  GB {best_probs['bip'][1]:.4f}  |  FB {best_probs['bip'][0]:.4f}  |  Popup {best_probs['bip'][3]:.4f}")
+    print(
+        f"  Swing: {best_probs['swing']:.4f}  |  Whiff: {best_probs['whiff']:.4f}  |  Foul: {best_probs['foul']:.4f}  |  Strike: {best_probs['strike']:.4f}"
+    )
+    print(
+        f"  BIP:   LD {best_probs['bip'][2]:.4f}  |  GB {best_probs['bip'][1]:.4f}  |  FB {best_probs['bip'][0]:.4f}  |  Popup {best_probs['bip'][3]:.4f}"
+    )

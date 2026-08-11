@@ -1,16 +1,18 @@
 import numpy as np
 import polars as pl
 import torch
+from src.outcome.modules.models.mlp import MLP
+from src.outcome.modules.models.transformer import Transformer
 
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward
 from src.embeddings.pitch.modules.cvae import CVAE
-from src.outcome.modules.seq_transformer import Transformer
 from src.sequencing.module.pitch_value import pitch_value
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
 
+# load models
 def load_cvae(cfg, n_pitchers, n_pitches):
     arch = cfg["arch"]
     model = CVAE(
@@ -64,6 +66,7 @@ def load_outcome(cfg, output_dim, n_pitcher_seasons, n_batter_seasons):
     model = Transformer(
         dim=arch["dim"],
         layers=arch["layers"],
+        attn_fnn_block=arch["attn_ffn_blocks"],
         dropout=arch["dropout"],
         nhead=arch["nhead"],
         output_dim=output_dim,
@@ -83,6 +86,17 @@ def load_outcome(cfg, output_dim, n_pitcher_seasons, n_batter_seasons):
     return model
 
 
+def load_strike_prob(cfg):
+    model = MLP(**cfg["arch"]).to(device)
+    ckpt = torch.load(
+        "weights/probs/strike_prob", map_location=device, weights_only=True
+    )
+    model.load_state_dict(ckpt["model_state_dict"])
+    model.eval()
+    return model
+
+
+# find player id given name and year
 def lookup_player(df, name, year, name_col, id_col):
     matches = df.filter((pl.col(name_col) == name) & (pl.col("game_year") == year))
     if matches.is_empty():
@@ -95,6 +109,7 @@ def lookup_player(df, name, year, name_col, id_col):
     return matches[id_col][0]
 
 
+# get unique pitches
 def get_pitcher_repertoire(df, pitcher_id_year):
     return (
         df.filter(pl.col("pitcher_year") == pitcher_id_year)["pitch_name"]
@@ -104,6 +119,7 @@ def get_pitcher_repertoire(df, pitcher_id_year):
     )
 
 
+# count -> count_arr
 def parse_count(count_str):
     balls, strikes = (int(x) for x in count_str.split("-"))
     if balls < 0 or balls > 3 or strikes < 0 or strikes > 2:
@@ -112,45 +128,82 @@ def parse_count(count_str):
     return count_str, count_arr
 
 
-def get_prior_sequence(
-    df, pitcher_id_year, batter_id_year, prior_seq_len, current_count_str
-):
-    matchup = df.filter(
-        (pl.col("pitcher_year") == pitcher_id_year)
-        & (pl.col("batter_year") == batter_id_year)
-    ).sort(["game_date", "atBatNumber", "pitch_number"], descending=[True, True, True])
+# draw from previous pitches with the probablity of strike prob
+BALL_RESULTS = {"ball", "blocked_ball", "intent_ball"}
+STRIKE_RESULTS = {
+    "called_strike",
+    "swinging_strike",
+    "swinging_strike_blocked",
+    "foul",
+    "foul_bunt",
+    "foul_tip",
+    "bunt_foul_tip",
+}
 
-    if matchup.is_empty():
-        return None
 
-    pitch_batter = matchup["pitchBatter"][0]
-    seq = df.filter(pl.col("pitchBatter") == pitch_batter).sort(
-        ["atBatNumber", "pitch_number"]
-    )
+def sample_prior_pitches(df, strike_model, sequence):
+    balls = 0
+    strikes = 0
+    pitch_embs = []
+    counts = []
+    pitch_types = []
+    descriptions = []
 
-    if prior_seq_len > 0 and prior_seq_len < len(seq):
-        seq = seq[-prior_seq_len:]
+    for pitch_name_int, result in sequence:
+        desc_set = BALL_RESULTS if result == "ball" else STRIKE_RESULTS
 
-    pitch_emb = np.stack(seq["genPitch"].to_list()).astype(np.float32)
-    counts = seq["countArr"].to_numpy().astype(np.int32)
-    atbats = seq["atBatNumber"].to_numpy().astype(np.int32)
-    pitch_strs = seq["pitch_str"].to_list()
-    descriptions = seq["description"].to_list()
+        candidates = df.filter(
+            (pl.col("pitch_name") == pitch_name_int)
+            & pl.col("description").is_in(desc_set)
+        )
 
-    c_str, c_arr = parse_count(current_count_str)
+        if candidates.is_empty():
+            raise ValueError(
+                f"No pitches found: pitch_name={pitch_name_int}, result={result}"
+            )
 
-    return {
-        "pitchEmb": pitch_emb,
-        "count": counts,
-        "atbat": atbats,
-        "pitch_str": pitch_strs,
+        features = torch.tensor(
+            np.stack(candidates["kmu"].to_list()).astype(np.float32)[:, :10],
+            device=device,
+        )
+
+        with torch.no_grad():
+            logits = strike_model(features).squeeze(-1)
+            ball_probs = torch.sigmoid(logits)
+
+        weights = ball_probs if result == "ball" else (1.0 - ball_probs)
+        weights = weights / weights.sum()
+        idx = torch.multinomial(weights, 1).item()
+
+        pitch_embs.append(candidates["kmu"][idx][:10])
+        counts.append(balls * 3 + strikes)
+        pitch_types.append(candidates["pitch_type"][idx])
+        descriptions.append(candidates["description"][idx])
+
+        if result == "ball":
+            balls += 1
+        else:
+            strikes += 1
+
+    seq_len = len(pitch_embs)
+    final_count_str = f"{balls}-{strikes}"
+    final_count_arr = balls * 3 + strikes
+
+    prior = {
+        "pitchEmb": np.array(pitch_embs, dtype=np.float32),
+        "count": np.array(counts, dtype=np.int32),
+        "atbat": np.zeros(seq_len, dtype=np.int32),
+        "pitch_type": pitch_types,
         "description": descriptions,
-        "current_count": c_arr,
-        "current_count_str": c_str,
-        "seq_len": len(seq),
+        "current_count": final_count_arr,
+        "current_count_str": final_count_str,
+        "seq_len": seq_len,
     }
 
+    return prior, final_count_str, final_count_arr
 
+
+# sample from cvae
 def generate_cvae_samples(cvae, pitcher_id, pitch_type, n, temperature):
     pitcher_emb = cvae.pitcherEmbed(torch.tensor([pitcher_id], device=device))
     pitch_emb = cvae.pitchEmbed(torch.tensor([pitch_type], device=device))
@@ -158,6 +211,7 @@ def generate_cvae_samples(cvae, pitcher_id, pitch_type, n, temperature):
     return cvae.generate(c, n=n, temperature=temperature)
 
 
+# batter expectation in current oun
 def compute_expectation(batter_exp, prior, rep_mask, pitcher_id_val, batter_id_val):
     if prior is None or prior["seq_len"] == 0:
         pitcher_id = torch.tensor([pitcher_id_val], device=device)
@@ -258,6 +312,7 @@ def build_outcome_batch(
     return pitch_emb, exp_emb, pitcher_id, batter_id, atbat, count, lengths
 
 
+# outcomes
 def run_outcome_models(swing_model, whiff_model, foul_model, bip_model, batch):
     pitch_emb, exp_emb, pitcher_id, batter_id, atbat, count, lengths = batch
 
@@ -293,7 +348,7 @@ def compute_run_values(
     count_str,
     game_year,
     hbp_prob,
-    strike_prob,
+    strike_probs,
 ):
     n = swing_prob.shape[0]
     rv = np.empty(n, dtype=np.float32)
@@ -312,7 +367,7 @@ def compute_run_values(
             ld_prob=bip_probs_np[i, 2],
             popup_prob=bip_probs_np[i, 3],
             hbp_prob=hbp_prob,
-            strike_prob=strike_prob,
+            strike_prob=strike_probs[i].item(),
         )
 
     return rv
