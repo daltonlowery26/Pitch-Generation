@@ -8,7 +8,7 @@ class OutcomeProb(Dataset):
     def __init__(self, df):
         if "row_idx" not in df.columns:
             df = df.with_row_index("row_idx")
-            
+
         df = df.sort(["pitchBatter", "atBatNumber", "pitch_number"])
         row_idx = torch.tensor(df["row_idx"].to_numpy(), dtype=torch.long)
         ids = torch.tensor(df["pitchBatter"].to_list())

@@ -1,11 +1,9 @@
-from this import d
 from datetime import date
 
 import numpy as np
 import polars as pl
 import torch
 from torch.utils.data import DataLoader, Dataset, Subset
-from src.outcome.modules.data.strike_HBP_data import preprocess
 
 PROB_COLUMNS = [
     "swing_prob",
@@ -32,7 +30,7 @@ class StackedData(Dataset):
         self.probs = torch.from_numpy(
             df.select(PROB_COLUMNS).to_numpy().astype(np.float32)
         )
-        
+
         self.swing = torch.from_numpy(df["swing_label"].to_numpy().astype(np.float32))
         self.ball = torch.from_numpy(df["ball_label"].to_numpy().astype(np.float32))
         self.whiff = torch.from_numpy(df["whiff_label"].to_numpy().astype(np.float32))
