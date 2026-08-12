@@ -6,7 +6,11 @@ from torch.utils.data import DataLoader, Dataset, Sampler
 
 class OutcomeProb(Dataset):
     def __init__(self, df):
+        if "row_idx" not in df.columns:
+            df = df.with_row_index("row_idx")
+            
         df = df.sort(["pitchBatter", "atBatNumber", "pitch_number"])
+        row_idx = torch.tensor(df["row_idx"].to_numpy(), dtype=torch.long)
         ids = torch.tensor(df["pitchBatter"].to_list())
 
         pitchEmb = df["kmu"].explode().to_numpy().astype(np.float32).reshape(-1, 10)
@@ -33,6 +37,7 @@ class OutcomeProb(Dataset):
         self.whiff = torch.from_numpy(df["whiff"].to_numpy().astype(np.int32))
         self.foul = torch.from_numpy(df["foul"].to_numpy().astype(np.int32))
         self.abNum = torch.from_numpy(df["atBatNumber"].to_numpy().astype(np.int32))
+        self.row_idx = row_idx
 
         changes = torch.where(ids[1:] != ids[:-1])[0] + 1
         self.boundaries = torch.cat(
@@ -56,6 +61,7 @@ class OutcomeProb(Dataset):
             "foul": self.foul[s:e],
             "count": self.count[s:e],
             "whiff": self.whiff[s:e],
+            "row_idx": self.row_idx[s:e],
         }
 
 
@@ -79,6 +85,9 @@ def collate_fn(batch):
         ),
         "whiff": pad_sequence(
             [b["whiff"] for b in batch], batch_first=True, padding_value=-1
+        ),
+        "row_idx": pad_sequence(
+            [b["row_idx"] for b in batch], batch_first=True, padding_value=-1
         ),
         "lengths": lengths,
     }
