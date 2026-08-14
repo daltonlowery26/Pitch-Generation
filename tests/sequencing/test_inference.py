@@ -1,6 +1,9 @@
+import numpy as np
 import polars as pl
 import pytest
+import torch
 
+from src.sequencing.module import inference
 from src.sequencing.module.inference import SequencingEngine
 
 
@@ -228,6 +231,7 @@ def test_sample_scenarios_converts_prior_pitches_to_pitch_result_pairs(engine):
 
     assert target["prior_sequence"] == [(0, "strike"), (1, "ball")]
     assert target["observed_pitch"] == "CH"
+    assert target["count_str"] == "1-1"
 
 
 def test_sample_scenarios_preserves_missed_bunt_as_a_strike(engine):
@@ -292,3 +296,129 @@ def test_sample_scenarios_preserves_observed_delta_run_values(engine):
     assert set(observed_by_identity) == set(expected_values)
     for identity, expected_value in expected_values.items():
         assert observed_by_identity[identity] == pytest.approx(expected_value)
+
+
+def test_sequencing_engine_loads_four_class_bip_model(monkeypatch):
+    pitch_map = pl.DataFrame(
+        {
+            "pitcher_year": [0],
+            "batter_year": [0],
+            "pitch_name": [0],
+            "pitchBatter": [0],
+            "pitch_type": ["FF"],
+        }
+    )
+    outcome_calls = []
+
+    def fake_load_config(path):
+        if path == "config/test/pitch_sequencing.yml":
+            return {
+                "inference": {
+                    "n_cvae_samples": 1,
+                    "temperature": 1.0,
+                    "game_year": 2024,
+                    "hbp_prob": 0.01,
+                },
+                "data": {"pitch_map": "ignored"},
+            }
+        return {"path": path}
+
+    monkeypatch.setattr(inference, "load_config", fake_load_config)
+    monkeypatch.setattr(inference.pl, "read_parquet", lambda _: pitch_map)
+    monkeypatch.setattr(
+        inference, "repertoire_mask", lambda *_args: torch.ones(1, 1, dtype=torch.bool)
+    )
+    monkeypatch.setattr(inference, "load_cvae", lambda *_args: object())
+    monkeypatch.setattr(inference, "load_expectation", lambda *_args: object())
+    monkeypatch.setattr(
+        inference,
+        "load_outcome",
+        lambda cfg, output_dim, *_args: (
+            outcome_calls.append((cfg, output_dim)) or object()
+        ),
+    )
+    monkeypatch.setattr(inference, "load_ball_prob", lambda *_args: object())
+
+    SequencingEngine()
+
+    assert outcome_calls[-1] == ({"path": "config/prob/bip_type.yml"}, 4)
+
+
+def test_evaluate_exposes_canonical_bip_probabilities_and_passes_raw_to_run_values(
+    monkeypatch, pitch_map
+):
+    engine = SequencingEngine.__new__(SequencingEngine)
+    engine.df = pitch_map
+    engine.inference_cfg = {
+        "n_cvae_samples": 2,
+        "temperature": 1.0,
+        "game_year": 2024,
+        "hbp_prob": 0.01,
+    }
+    engine.rep_mask = torch.ones(1, 1, dtype=torch.bool)
+    engine.cvae = object()
+    engine.batter_exp = object()
+    engine.swing_model = object()
+    engine.whiff_model = object()
+    engine.foul_model = object()
+    engine.bip_model = object()
+    engine.ball_model = lambda candidates: torch.zeros(candidates.shape[0], 1)
+    engine.pitch_labels = {}
+
+    candidates = torch.zeros(2, 3)
+    raw_bip_probs = torch.tensor([[0.1, 0.2, 0.3, 0.4], [0.4, 0.3, 0.2, 0.1]])
+    run_value_bip_probs = []
+    batch_count_arrs = []
+    run_value_count_strs = []
+
+    monkeypatch.setattr(inference, "lookup_player", lambda *_args: 0)
+    monkeypatch.setattr(inference, "get_pitcher_repertoire", lambda *_args: [0])
+    monkeypatch.setattr(
+        inference, "compute_expectation", lambda *_args: (None, torch.zeros(1))
+    )
+    monkeypatch.setattr(inference, "generate_cvae_samples", lambda *_args: candidates)
+
+    def fake_build_outcome_batch(*args):
+        batch_count_arrs.append(args[6])
+        return "batch"
+
+    monkeypatch.setattr(inference, "build_outcome_batch", fake_build_outcome_batch)
+    monkeypatch.setattr(
+        inference,
+        "run_outcome_models",
+        lambda *_args: (
+            torch.full((2,), 0.5),
+            torch.full((2,), 0.2),
+            torch.full((2,), 0.1),
+            raw_bip_probs,
+        ),
+    )
+
+    def fake_compute_run_values(*args):
+        run_value_bip_probs.append(args[3])
+        run_value_count_strs.append(args[4])
+        return np.zeros(2, dtype=np.float32)
+
+    monkeypatch.setattr(inference, "compute_run_values", fake_compute_run_values)
+
+    result = engine.evaluate(
+        {
+            "pitcher": "P1",
+            "pitcher_year": 2024,
+            "batter": "B1",
+            "batter_year": 2024,
+            "count_str": "1-2",
+        }
+    )
+
+    assert result["probs"][0]["bip"].shape == (2, 4)
+    np.testing.assert_allclose(
+        result["probs"][0]["bip"],
+        [
+            [0.1, 0.3, 0.2, 0.4],
+            [0.4, 0.2, 0.3, 0.1],
+        ],
+    )
+    assert torch.equal(run_value_bip_probs[0], raw_bip_probs)
+    assert batch_count_arrs == [5]
+    assert run_value_count_strs == ["1-2"]
