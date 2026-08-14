@@ -1,33 +1,16 @@
 from datetime import datetime
 
 import numpy as np
-import polars as pl
 import torch
 from sklearn.metrics import log_loss
 from torch import nn
 
-from src.outcome.modules.data.outcome_data import (
-    OutcomeProb,
-    split_loaders,
-)
+from src.outcome.modules.data.outcome_data import load_data
 from src.outcome.modules.models.transformer import Transformer
 from src.utils.modeling.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
-
-
-def load_data(df, prefetch, workers, batch_size):
-    data = OutcomeProb(df)
-    return data, *split_loaders(
-        data,
-        df,
-        batch_size,
-        prefetch,
-        workers,
-        cutoff=datetime(2025, 7, 1).date(),
-        drop_last=True,
-    )
 
 
 def forward(batch, model, device):
@@ -46,8 +29,18 @@ def forward(batch, model, device):
     foul = batch["foul"].to(device)
 
     logits = model(pitchEmb, expEmb, pitcherID, batterID, atbat, count, lengths)
-    mask = (labels[:, :, 0] != -1) & (swing == 1) & (whiff != 1) & (foul != 1)
+    mask = (
+        (labels != -1).all(dim=-1)
+        & (labels.sum(dim=-1) > 0)
+        & (swing == 1)
+        & (whiff != 1)
+        & (foul != 1)
+    )
     return logits, labels, mask
+
+
+def compute_loss(logits, labels, mask, loss_fn):
+    return loss_fn(logits[mask], labels[mask].argmax(dim=-1))
 
 
 def train(
@@ -60,6 +53,7 @@ def train(
     adamw_sched,
     loss_fn,
     epochs,
+    weight_path,
 ):
     model.to(device)
     best_loss = np.inf
@@ -70,7 +64,7 @@ def train(
 
         for batch in train_loader:
             logits, labels, mask = forward(batch, model, device)
-            loss = loss_fn(logits[mask], labels[mask].float())
+            loss = compute_loss(logits, labels, mask, loss_fn)
 
             muon_opti.zero_grad()
             adamw_opti.zero_grad()
@@ -89,12 +83,12 @@ def train(
         with torch.no_grad():
             for batch in val_loader:
                 logits, labels, mask = forward(batch, model, device)
-                val_loss += loss_fn(logits[mask], labels[mask].float()).detach()
+                val_loss += compute_loss(logits, labels, mask, loss_fn).detach()
 
         avg_val_loss = val_loss / len(val_loader)
         if avg_val_loss < best_loss:
             best_loss = avg_val_loss
-            torch.save(model.state_dict(), "weights/bip_type.pth")
+            torch.save(model.state_dict(), weight_path)
 
         print(
             f"epoch: {epoch} | train_loss: {train_loss:.4f} | val_loss: {avg_val_loss:.4f}"
@@ -124,18 +118,19 @@ if __name__ == "__main__":
     cfg = load_config("config/prob/bip_type.yml")
     epochs = cfg["training"]["epochs"]
 
-    # preprocessing steps
-    df = pl.read_parquet("data/pitch/pitch_exp.parquet").with_columns(
-        pl.col("kmu").list.slice(0, 10)
-    )
-
-    # number of pitchers, batters, len
-    pitchers = df["pitcher_year"].n_unique()
-    batters = df["batter_year"].n_unique()
-    pitches = df["pitch_name"].n_unique()
-
-    data, train_loader, val_loader, test_loader = load_data(
-        df, prefetch=4, workers=4, batch_size=cfg["training"]["batch_size"]
+    (
+        data,
+        train_loader,
+        val_loader,
+        test_loader,
+        pitchers,
+        batters,
+        pitches,
+    ) = load_data(
+        prefetch=4,
+        workers=4,
+        batch_size=cfg["training"]["batch_size"],
+        cutoff=datetime(2025, 7, 1).date(),
     )
 
     loss_fn = nn.CrossEntropyLoss(
@@ -152,7 +147,7 @@ if __name__ == "__main__":
         countdim=arch["countdim"],
         exp_dim=arch["exp_dim"],
         abdim=arch["abdim"],
-        output_dim=5,
+        output_dim=arch["output_dim"],
         exp_proj_dim=arch["exp_proj_dim"],
         batter_dim=arch["batter_dim"],
         n_pitcher_seasons=pitchers,
@@ -178,8 +173,9 @@ if __name__ == "__main__":
         adamw_sched,
         loss_fn,
         epochs=epochs,
+        weight_path=cfg["weight_path"],
     )
 
-    model.load_state_dict(torch.load("weights/bip_type.pth"))
+    model.load_state_dict(torch.load(cfg["weight_path"]))
     preds, labels = test(model, test_loader, masking=True)
     print(log_loss(labels, preds), flush=True)

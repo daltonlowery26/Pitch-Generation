@@ -1,33 +1,16 @@
 from datetime import datetime
 
 import numpy as np
-import polars as pl
 import torch
 from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
 from torch import nn
 
-from src.outcome.modules.data.outcome_data import (
-    OutcomeProb,
-    split_loaders,
-)
+from src.outcome.modules.data.outcome_data import load_data
 from src.outcome.modules.models.transformer import Transformer
 from src.utils.modeling.config import load_config
 from src.utils.modeling.opti import make_optimizers
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
-
-
-def load_data(df, prefetch, workers, batch_size):
-    data = OutcomeProb(df)
-    return data, *split_loaders(
-        data,
-        df,
-        batch_size,
-        prefetch,
-        workers,
-        cutoff=datetime(2025, 7, 1).date(),
-        drop_last=True,
-    )
 
 
 def forward(batch, model, device):
@@ -128,18 +111,19 @@ if __name__ == "__main__":
     cfg = load_config("config/prob/foul_prob.yml")
     epochs = cfg["training"]["epochs"]
 
-    # preprocessing steps
-    df = pl.read_parquet("data/pitch/pitch_exp.parquet").with_columns(
-        pl.col("kmu").list.slice(0, 10)
-    )
-
-    # number of pitchers, batters, len
-    pitchers = df["pitcher_year"].n_unique()
-    batters = df["batter_year"].n_unique()
-    pitches = df["pitch_name"].n_unique()
-
-    data, train_loader, val_loader, test_loader = load_data(
-        df, prefetch=4, workers=4, batch_size=cfg["training"]["batch_size"]
+    (
+        data,
+        train_loader,
+        val_loader,
+        test_loader,
+        pitchers,
+        batters,
+        pitches,
+    ) = load_data(
+        prefetch=4,
+        workers=4,
+        batch_size=cfg["training"]["batch_size"],
+        cutoff=datetime(2025, 7, 1).date(),
     )
 
     loss_fn = nn.BCEWithLogitsLoss()
