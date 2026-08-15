@@ -42,44 +42,20 @@ def test_forward_shapes():
     B = 16
     b = toy_batch(B=B)
     with torch.no_grad():
-        recon, mu, logvar, prior_mu, prior_logvar = _forward(model, b)
+        recon, mu, logvar = _forward(model, b)
     assert recon.shape == (B, INPUT_DIM), recon.shape
     assert mu.shape == (B, LATENT_DIM), mu.shape
     assert logvar.shape == (B, LATENT_DIM), logvar.shape
-    assert prior_mu.shape == (B, LATENT_DIM), prior_mu.shape
-    assert prior_logvar.shape == (B, LATENT_DIM), prior_logvar.shape
-    for t in (recon, mu, logvar, prior_mu, prior_logvar):
+    for t in (recon, mu, logvar):
         assert torch.isfinite(t).all()
 
 
 def test_loss_is_scalar():
     model = tiny_model().eval()
     b = toy_batch()
-    recon, mu, logvar, prior_mu, prior_logvar = _forward(model, b)
-    loss = cvae_loss(
-        recon,
-        b["x"],
-        mu,
-        logvar,
-        F.mse_loss,
-        beta=0.4,
-        mu_p=prior_mu,
-        logvar_p=prior_logvar,
-    )
+    recon, mu, logvar = _forward(model, b)
+    loss = cvae_loss(recon, b["x"], mu, logvar, F.mse_loss, beta=0.4)
     assert loss.ndim == 0 and torch.isfinite(loss), loss
-
-
-def test_prior_depends_on_condition():
-    model = tiny_model().eval()
-    cond_a = torch.zeros(1, model.h_dim)
-    cond_b = torch.ones(1, model.h_dim)
-    with torch.no_grad():
-        model.prior_mu.weight.fill_(1.0)
-        model.prior_sigma.weight.fill_(1.0)
-        prior_mu_a, prior_logvar_a = model.get_prior(cond_a)
-        prior_mu_b, prior_logvar_b = model.get_prior(cond_b)
-    assert not torch.equal(prior_mu_a, prior_mu_b)
-    assert not torch.equal(prior_logvar_a, prior_logvar_b)
 
 
 def test_overfit_single_batch():
@@ -91,17 +67,8 @@ def test_overfit_single_batch():
     first_mse = last_mse = None
     for step in range(500):
         opt.zero_grad(set_to_none=True)
-        recon, mu, logvar, prior_mu, prior_logvar = _forward(model, b)
-        loss = cvae_loss(
-            recon,
-            b["x"],
-            mu,
-            logvar,
-            F.mse_loss,
-            beta=1e-4,
-            mu_p=prior_mu,
-            logvar_p=prior_logvar,
-        )
+        recon, mu, logvar = _forward(model, b)
+        loss = cvae_loss(recon, b["x"], mu, logvar, F.mse_loss, beta=1e-4)
         loss.backward()
         opt.step()
         with torch.no_grad():

@@ -274,6 +274,7 @@ def test_simulate_optimal_usage_samples_two_history_preserving_at_bats(
     class FakeEngine:
         def __init__(self, _pitch_map):
             self.df = __import__("polars").DataFrame(pitch_map)
+            self.cvae = torch.nn.Linear(1, 1)
 
         def score_pitch_candidates(self, **kwargs):
             calls.append(
@@ -350,6 +351,7 @@ def test_simulate_optimal_usage_uses_target_observed_repertoire_for_pooled_id(
     class FakeEngine:
         def __init__(self, _pitch_map):
             self.df = pitch_map
+            self.cvae = torch.nn.Linear(1, 1)
 
         def score_pitch_candidates(self, **kwargs):
             calls.append(kwargs)
@@ -408,6 +410,7 @@ def test_simulate_optimal_usage_selects_by_mean_and_uses_selected_candidate(
     class FakeEngine:
         def __init__(self, _pitch_map):
             self.df = pitch_map
+            self.cvae = torch.nn.Linear(1, 1)
 
         def score_pitch_candidates(self, **kwargs):
             calls.append(
@@ -475,6 +478,7 @@ def test_simulate_optimal_usage_whiff_at_two_strikes_is_terminal(monkeypatch):
     class FakeEngine:
         def __init__(self, _pitch_map):
             self.df = pitch_map
+            self.cvae = torch.nn.Linear(1, 1)
 
         def score_pitch_candidates(self, **kwargs):
             return {
@@ -522,6 +526,7 @@ def test_simulate_optimal_usage_resolves_called_strikes_and_counts_zero_use_pitc
     class FakeEngine:
         def __init__(self, _pitch_map):
             self.df = pitch_map
+            self.cvae = torch.nn.Linear(1, 1)
 
         def score_pitch_candidates(self, **kwargs):
             return {
@@ -616,6 +621,7 @@ def test_simulate_optimal_usage_samples_and_aggregates_popups(monkeypatch):
     class FakeEngine:
         def __init__(self, _pitch_map):
             self.df = pitch_map
+            self.cvae = torch.nn.Linear(1, 1)
 
         def score_pitch_candidates(self, **kwargs):
             return {
@@ -658,6 +664,7 @@ def test_simulate_optimal_usage_keeps_two_strike_fouls_in_count(monkeypatch):
     class FakeEngine:
         def __init__(self, _pitch_map):
             self.df = pitch_map
+            self.cvae = torch.nn.Linear(1, 1)
 
         def score_pitch_candidates(self, **kwargs):
             count = kwargs["current_count_str"]
@@ -709,6 +716,7 @@ def test_simulate_optimal_usage_is_seeded_and_samples_opponents_with_replacement
         class FakeEngine:
             def __init__(self, _pitch_map):
                 self.df = pitch_map
+                self.cvae = torch.nn.Linear(1, 1)
 
             def score_pitch_candidates(self, **kwargs):
                 if (
@@ -766,6 +774,7 @@ def test_simulate_optimal_usage_propagates_maximum_history_error(monkeypatch):
     class FakeEngine:
         def __init__(self, _pitch_map):
             self.df = pitch_map
+            self.cvae = torch.nn.Linear(1, 1)
 
         def score_pitch_candidates(self, **kwargs):
             if kwargs["prior"] is not None:

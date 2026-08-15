@@ -1,15 +1,5 @@
-from datetime import date
-
-import polars as pl
-import pytest
 import torch
 
-from src.outcome.stacked.modules import generate_logits
-from src.outcome.stacked.modules.generate_logits import (
-    assemble_base_probabilities,
-    flatten_sequence_output,
-)
-from src.outcome.stacked.modules.stacked_data import StackedData, split_loaders
 from src.outcome.stacked.modules.stacked_model import StackedCalibrator, brier_loss
 
 
@@ -52,4 +42,3 @@ def test_brier_loss_uses_conditional_ground_truth_masks():
     assert torch.isclose(
         loss, torch.stack([binary, binary, binary, binary, bip]).mean()
     )
-
