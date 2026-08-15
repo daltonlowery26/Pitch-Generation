@@ -2,8 +2,8 @@ arch:
   dim: 128
   nheads: 4
   layers: 4
-  dropout: 0.2
-  attn_ffn_blocks: 2
+  dropout: 0.1
+  attn_ffn_blocks: 3
   horizons: [1, 2, 3, 4]
   pitcher_dim: 24
   batter_dim: 24

@@ -1,6 +1,6 @@
 arch:
-  dim: 256
-  layers: 4
+  dim: 128
+  layers: 6
   dropout: 0.2
   nhead: 4
   attn_ffn_blocks: 2
@@ -8,8 +8,8 @@ arch:
   countdim: 4
   exp_dim: 13
   abdim: 4
-  output_dim: 1
-  exp_proj_dim: 16
+  output_dim: 4
+  exp_proj_dim: 8
   batter_dim: 24
 training:
   lr: 0.005

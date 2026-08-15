@@ -1,7 +1,7 @@
 arch:
-  dim: 256
-  layers: 4
-  dropout: 0.15
+  dim: 128
+  layers: 6
+  dropout: 0.1
   nhead: 4
   attn_ffn_blocks: 2
   embed_dim: 10

@@ -2,9 +2,9 @@ arch:
   inp: 10
   out: 1
   dim: 128
-  blocks: 4
+  blocks: 5
 training:
   epochs: 300
   lr: 0.001
   smoothing: 0.05
-  
+weight_path: weights/probs/ball_prob.pth

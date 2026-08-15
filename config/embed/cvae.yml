@@ -1,7 +1,7 @@
 arch:
   input_dim: 10
-  pitch_dim: 16
-  pitcher_dim: 16
+  pitch_dim: 8
+  pitcher_dim: 24
   h_dim: 128
   latent_dim: 6
   dropout: 0.1
