@@ -166,12 +166,10 @@ if __name__ == "__main__":
         "called_strike",
         "swinging_strike",
         "swinging_strike_blocked",
-        "foul_tip",
         "missed_bunt",
-        "bunt_foul_tip",
     ]
-    foul_descs = ["foul", "foul_bunt"]
-    ball_descs = ["ball", "blocked_ball", "pitchout"]
+    foul_descs = ["foul", "foul_bunt", "bunt_foul_tip", "foul_tip"]
+    ball_descs = ["ball", "blocked_ball", "pitchout", "intent_ball"]
 
     transition = (
         pl.when(pl.col("description").is_in(strike_descs))
@@ -184,6 +182,7 @@ if __name__ == "__main__":
     )
 
     df = df.with_columns(transition=transition)
+    df.write_parquet("test.parquet")
 
     # linear weights for non-terminal count transitions
     countTransValue = (

@@ -91,17 +91,18 @@ class SequencingEngine:
     ):
         if pitcher is not None and pitcher_year is None:
             raise ValueError("pitcher_year is required when pitcher is provided")
+
         if batter is not None and batter_year is None:
             raise ValueError("batter_year is required when batter is provided")
-        if n < 0:
-            raise ValueError("n must be non-negative")
 
         eligible = self.df
+
         if pitcher is not None:
             eligible = eligible.filter(pl.col("pitcher_name") == pitcher)
             eligible = eligible.filter(pl.col("game_year") == pitcher_year)
         elif pitcher_year is not None:
             eligible = eligible.filter(pl.col("game_year") == pitcher_year)
+
         if batter is not None:
             eligible = eligible.filter(pl.col("batter_name") == batter)
             eligible = eligible.filter(pl.col("game_year") == batter_year)
@@ -119,6 +120,7 @@ class SequencingEngine:
             observed = rows[-1]
             prior_sequence = []
             supported = True
+            # only get still in progress, sequences
             for prior in rows[:-1]:
                 description = prior["description"]
                 if description in BALL_RESULTS:
@@ -133,6 +135,19 @@ class SequencingEngine:
             if not supported:
                 continue
 
+            prior = None
+            if prior_sequence and "kmu" in self.df.columns:
+                prior = {
+                    "pitchEmb": [list(row["kmu"][:10]) for row in rows[:-1]],
+                    "count": [parse_count(row["count"])[1] for row in rows[:-1]],
+                    "atbat": [0] * len(rows[:-1]),
+                    "pitch_type": [row["pitch_type"] for row in rows[:-1]],
+                    "description": [row["description"] for row in rows[:-1]],
+                    "current_count": parse_count(observed["count"])[1],
+                    "current_count_str": observed["count"],
+                    "seq_len": len(rows[:-1]),
+                }
+
             scenarios.append(
                 {
                     "pitcher": observed["pitcher_name"],
@@ -143,6 +158,7 @@ class SequencingEngine:
                     "observed_pitch": observed["pitch_type"],
                     "observed_run_value": observed["delta_run_exp"],
                     "count_str": observed["count"],
+                    "prior": prior,
                 }
             )
 
@@ -155,7 +171,7 @@ class SequencingEngine:
         )
         return [scenarios[index] for index in selected]
 
-    def evaluate(self, scenario):
+    def evaluate(self, scenario, sample_sequence=False):
         pitcher_id = lookup_player(
             self.df,
             scenario["pitcher"],
@@ -171,14 +187,19 @@ class SequencingEngine:
             "batter_year",
         )
         repertoire = get_pitcher_repertoire(self.df, pitcher_id)
+
+        # check impossible pitchers
         if not repertoire:
             raise ValueError(
                 f"Pitcher '{scenario['pitcher']}' ({scenario['pitcher_year']}) "
                 "has no pitch repertoire."
             )
 
+        # expectation
         prior = None
         prior_info = None
+
+        # count
         scenario_count_str = scenario.get("count_str")
         if scenario_count_str is None:
             count_str = "0-0"
@@ -186,13 +207,23 @@ class SequencingEngine:
         else:
             count_str, count_arr = parse_count(scenario_count_str)
         prior_sequence = scenario.get("prior_sequence")
-        if prior_sequence:
+
+        if sample_sequence and prior_sequence:
             prior, sampled_count_str, sampled_count_arr = sample_prior_pitches(
                 self.df, self.ball_model, prior_sequence
             )
             if scenario_count_str is None:
                 count_str = sampled_count_str
                 count_arr = sampled_count_arr
+        elif not sample_sequence and scenario.get("prior") is not None:
+            prior = {
+                **scenario["prior"],
+                "pitchEmb": np.asarray(scenario["prior"]["pitchEmb"], dtype=np.float32),
+                "count": np.asarray(scenario["prior"]["count"], dtype=np.int32),
+                "atbat": np.asarray(scenario["prior"]["atbat"], dtype=np.int32),
+            }
+
+        if prior is not None:
             prior["pitcher_id"] = pitcher_id
             prior["batter_id"] = batter_id
             prior_info = {

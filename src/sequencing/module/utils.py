@@ -141,6 +141,7 @@ STRIKE_RESULTS = {
 }
 
 
+# if user specifies sequence
 def sample_prior_pitches(df, ball_model, sequence, current_atbat=0):
     balls = 0
     strikes = 0

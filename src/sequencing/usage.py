@@ -7,6 +7,11 @@ from src.sequencing.module.inference import SequencingEngine
 from src.sequencing.module.utils import lookup_player
 
 
+def _make_torch_generator(model, seed):
+    model_device = next(model.parameters()).device
+    return torch.Generator(device=model_device).manual_seed(seed)
+
+
 def simulate_optimal_usage(
     pitch_map,
     pitcher,
@@ -15,7 +20,10 @@ def simulate_optimal_usage(
     seed=26,
     n_cvae_samples=10,
 ):
+    # sequencing backbone
     engine = SequencingEngine(pitch_map)
+
+    # get player id
     pitcher_id = lookup_player(
         engine.df, pitcher, season, "pitcher_name", "pitcher_year"
     )
@@ -37,7 +45,7 @@ def simulate_optimal_usage(
 
     n_batters = len(opponent_pool) if n_batters is None else int(n_batters)
     rng = np.random.default_rng(seed)
-    torch_generator = torch.Generator(device="cpu").manual_seed(seed)
+    torch_generator = _make_torch_generator(engine.cvae, seed)
     sampled_batters = rng.choice(opponent_pool, size=n_batters, replace=True)
 
     pitch_counts = Counter({pitch_type: 0 for pitch_type in repertoire})

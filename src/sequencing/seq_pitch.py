@@ -20,7 +20,8 @@ def optimal_pitch(
             "batter": batter,
             "batter_year": batter_year,
             "prior_sequence": prior_sequence,
-        }
+        },
+        sample_sequence=True,
     )
 
     results = {
