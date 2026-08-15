@@ -7,5 +7,5 @@ training:
   lr: 0.001
   batch_size: 4096
 temperature: 1.0
-weight_path: weights/cvae_map.pth
+weight_path: weights/embed/cvae_map.pth
 data_path: data/pitch/pitch_map.parquet

@@ -132,8 +132,10 @@ class CVAE(nn.Module):
         return recon, mu_q, logvar_q
 
     @torch.no_grad()
-    def generate(self, c, n=None, temperature=1.0):
+    def generate(self, c, generator, n=None, temperature=1.0):
         cond = self.cond_proj(c)
         n = n if n is not None else cond.shape[0]
-        z = temperature * torch.randn(n, self.latent_dim, device=cond.device)
+        z = temperature * torch.randn(
+            n, self.latent_dim, device=cond.device, generator=generator
+        )
         return self.decode(z, cond.expand(n, -1) if cond.shape[0] == 1 else cond)

@@ -206,11 +206,10 @@ if __name__ == "__main__":
             ]
         ),
         bipArr=pl.concat_list(
-            (pl.col("bb_type") == "fly_ball"),
-            (pl.col("bb_type") == "ground_ball"),
-            (pl.col("bb_type") == "line_drive"),
-            (pl.col("bb_type") == "popup"),
-            (pl.col("bb_type").is_null()),
+            (pl.col("bb_type") == "fly_ball").fill_null(False),
+            (pl.col("bb_type") == "ground_ball").fill_null(False),
+            (pl.col("bb_type") == "line_drive").fill_null(False),
+            (pl.col("bb_type") == "popup").fill_null(False),
         ),
     )
 

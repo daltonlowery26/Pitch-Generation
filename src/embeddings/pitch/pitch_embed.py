@@ -148,7 +148,7 @@ def train(
         # checkpoint best
         if avg_val_loss < best_loss:
             best_loss = avg_val_loss
-            checkpoint_path = "weights/cvae_map.pth"
+            checkpoint_path = "weights/embed/cvae_map.pth"
             torch.save(
                 {"epoch": epoch, "model_state": model.state_dict()},
                 checkpoint_path,

@@ -2,6 +2,7 @@ import math
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import FormatStrFormatter
 
 from src.sequencing.module.inference import SequencingEngine
 
@@ -46,7 +47,7 @@ def plot_run_values(
 
     metadata_keys = {"probs", "prior_info", "count_str", "pitch_labels"}
     for axis, scenario in zip(axes, scenarios):
-        evaluation = engine.evaluate(scenario)
+        evaluation = engine.evaluate(scenario, sample_sequence=False)
         pitch_labels = evaluation.get("pitch_labels", {})
         for pitch_type, run_values in evaluation.items():
             if pitch_type in metadata_keys:
@@ -55,16 +56,19 @@ def plot_run_values(
                 np.asarray(run_values),
                 bins=bins,
                 density=True,
-                alpha=0.45,
+                alpha=0.3,
                 label=pitch_labels.get(pitch_type, str(pitch_type)),
             )
 
         count = evaluation.get("count_str", scenario.get("count_str", ""))
         axis.set_title(
             f"{scenario['pitcher']} ({scenario['pitcher_year']}) vs "
-            f"{scenario['batter']} ({scenario['batter_year']}) | Count {count}"
+            f"{scenario['batter']} ({scenario['batter_year']}) | Count {count}",
+            fontsize=9,
         )
-        axis.set_xlabel("Run value")
+
+        axis.xaxis.set_major_formatter(FormatStrFormatter("%.3f"))
+        axis.set_xlabel("Change in Expected RV")
         axis.set_ylabel("Density")
         axis.legend()
 
@@ -81,6 +85,6 @@ if __name__ == "__main__":
         n_scenarios=3,
         pitcher="Warren, Will",
         pitcher_year=2025,
-        batter="Bregman, Alex",
+        batter="Refsnyder, Rob",
         batter_year=2025,
     )

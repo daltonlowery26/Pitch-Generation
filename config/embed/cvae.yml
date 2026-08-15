@@ -1,11 +1,11 @@
 arch:
   input_dim: 10
-  pitch_dim: 8
+  pitch_dim: 16
   pitcher_dim: 24
   h_dim: 128
   latent_dim: 6
-  dropout: 0.1
-  n_layers: 4
+  dropout: 0.15
+  n_layers: 5
 training:
   lr: 0.001
   batch_size: 96000

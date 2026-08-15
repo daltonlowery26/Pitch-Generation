@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader, Dataset
 
 
 def generate_fakes(df, cvae_model, temperature, device):
-    kmu = np.stack(df["kmu"].to_list()).astype(np.float32)
+    kmu = np.asarray(df["kmu"].to_list(), dtype=np.float32)
     pitcher = kmu[:, 10].astype(np.int64)
     pitch = kmu[:, 11].astype(np.int64)
 
@@ -65,17 +65,15 @@ def split_loaders(
     drop_last,
     pin=True,
 ):
-    df = df.with_columns(pl.col("kmu").list.slice(0, 10))
-
     tv = df.with_row_index(name="ridx").filter(pl.col("game_date") < cutoff)
 
     train_subset = tv.sample(fraction=0.8, seed=26)
     val_subset = tv.filter(~pl.col("ridx").is_in(train_subset["ridx"]))
     test_subset = df.filter(pl.col("game_date") >= cutoff)
 
-    train_real = train_subset["kmu"].to_list().astype(np.float32)
-    val_real = val_subset["kmu"].to_list().astype(np.float32)
-    test_real = test_subset["kmu"].to_list().astype(np.float32)
+    train_real = np.asarray(train_subset["kmu"].to_list(), dtype=np.float32)[:, :10]
+    val_real = np.asarray(val_subset["kmu"].to_list(), dtype=np.float32)[:, :10]
+    test_real = np.asarray(test_subset["kmu"].to_list(), dtype=np.float32)[:, :10]
 
     train_fake = generate_fakes(train_subset, cvae_model, temperature, "cuda")
     val_fake = generate_fakes(val_subset, cvae_model, temperature, "cuda")

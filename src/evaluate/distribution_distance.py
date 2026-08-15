@@ -66,7 +66,7 @@ def pitcher_distances(
     pitcher_name,
     bandwidth,
     min_samples=100,
-    max_samples=2048,
+    max_samples=5000,
     seed=0,
     block_size=1024,
 ):
@@ -172,7 +172,7 @@ if __name__ == "__main__":
         "vx0",
         "vy0",
         "vz0",
-        "pitcher_id_year",
+        "pitcher_year",
         "pitch_name",
     ]
     df = df.drop_nulls(subset=features)
