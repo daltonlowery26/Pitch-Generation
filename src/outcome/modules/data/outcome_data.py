@@ -1,7 +1,10 @@
 import numpy as np
+import polars as pl
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset, Sampler
+
+BIP_CLASSES = 4
 
 
 class OutcomeProb(Dataset):
@@ -21,7 +24,7 @@ class OutcomeProb(Dataset):
             .fill_null(0)
             .to_numpy()
             .astype(np.int32)
-            .reshape(-1, 5)
+            .reshape(-1, BIP_CLASSES)
         )
 
         self.pitchEmb = torch.from_numpy(pitchEmb)
@@ -134,6 +137,21 @@ class LenSampler(Sampler):
             if self.drop_last
             else (n + self.batch_size - 1) // self.batch_size
         )
+
+
+def load_data(prefetch, workers, batch_size, cutoff):
+    df = pl.read_parquet("data/pitch/pitch_exp.parquet").with_columns(
+        pl.col("kmu").list.slice(0, 10),
+        pl.col("bipArr").list.slice(0, BIP_CLASSES),
+    )
+    data = OutcomeProb(df)
+    loaders = split_loaders(
+        data, df, batch_size, prefetch, workers, cutoff=cutoff, drop_last=True
+    )
+    pitchers = df["pitcher_year"].n_unique()
+    batters = df["batter_year"].n_unique()
+    pitches = df["pitch_name"].n_unique()
+    return data, *loaders, pitchers, batters, pitches
 
 
 def split_loaders(
