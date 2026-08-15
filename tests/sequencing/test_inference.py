@@ -344,7 +344,7 @@ def test_sequencing_engine_loads_four_class_bip_model(monkeypatch):
     assert outcome_calls[-1] == ({"path": "config/prob/bip_type.yml"}, 4)
 
 
-def test_evaluate_exposes_canonical_bip_probabilities_and_passes_raw_to_run_values(
+def test_evaluate_exposes_ball_probability_and_canonical_bip_probabilities(
     monkeypatch, pitch_map
 ):
     engine = SequencingEngine.__new__(SequencingEngine)
@@ -362,12 +362,16 @@ def test_evaluate_exposes_canonical_bip_probabilities_and_passes_raw_to_run_valu
     engine.whiff_model = object()
     engine.foul_model = object()
     engine.bip_model = object()
-    engine.ball_model = lambda candidates: torch.zeros(candidates.shape[0], 1)
+    ball_logit = torch.logit(torch.tensor(0.2)).item()
+    engine.ball_model = lambda candidates: torch.full(
+        (candidates.shape[0], 1), ball_logit
+    )
     engine.pitch_labels = {}
 
     candidates = torch.zeros(2, 3)
     raw_bip_probs = torch.tensor([[0.1, 0.2, 0.3, 0.4], [0.4, 0.3, 0.2, 0.1]])
     run_value_bip_probs = []
+    run_value_ball_probs = []
     batch_count_arrs = []
     run_value_count_strs = []
 
@@ -397,6 +401,7 @@ def test_evaluate_exposes_canonical_bip_probabilities_and_passes_raw_to_run_valu
     def fake_compute_run_values(*args):
         run_value_bip_probs.append(args[3])
         run_value_count_strs.append(args[4])
+        run_value_ball_probs.append(args[7])
         return np.zeros(2, dtype=np.float32)
 
     monkeypatch.setattr(inference, "compute_run_values", fake_compute_run_values)
@@ -412,6 +417,8 @@ def test_evaluate_exposes_canonical_bip_probabilities_and_passes_raw_to_run_valu
     )
 
     assert result["probs"][0]["bip"].shape == (2, 4)
+    assert result["probs"][0]["ball"].tolist() == pytest.approx([0.2, 0.2])
+    assert "strike" not in result["probs"][0]
     np.testing.assert_allclose(
         result["probs"][0]["bip"],
         [
@@ -420,5 +427,7 @@ def test_evaluate_exposes_canonical_bip_probabilities_and_passes_raw_to_run_valu
         ],
     )
     assert torch.equal(run_value_bip_probs[0], raw_bip_probs)
+    assert run_value_bip_probs[0].shape == (2, 4)
+    assert run_value_ball_probs[0].tolist() == pytest.approx([0.2, 0.2])
     assert batch_count_arrs == [5]
     assert run_value_count_strs == ["1-2"]

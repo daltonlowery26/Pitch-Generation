@@ -7,8 +7,13 @@ import pyarrow.parquet as pq
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from src.outcome.modules.data.outcome_data import LenSampler, OutcomeProb, collate_fn
-from src.sequencing.module.utils import load_outcome, load_strike_prob
+from src.outcome.modules.data.outcome_data import (
+    BIP_CLASSES,
+    LenSampler,
+    OutcomeProb,
+    collate_fn,
+)
+from src.sequencing.module.utils import load_ball_prob, load_outcome
 from src.utils.modeling.config import load_config
 
 device = torch.device("cuda" if torch.cuda.is_available() else "mps")
@@ -36,7 +41,7 @@ def add_labels(df):
         pl.col("foul").cast(pl.Int8).alias("foul_label"),
         *[
             pl.col("bipArr").list.get(i).cast(pl.Int8).alias(f"bip_label_{i}")
-            for i in range(5)
+            for i in range(BIP_CLASSES)
         ],
     )
 
@@ -49,11 +54,7 @@ def assemble_base_probabilities(df, paths, output):
         "ball_label",
         "whiff_label",
         "foul_label",
-        "bip_label_0",
-        "bip_label_1",
-        "bip_label_2",
-        "bip_label_3",
-        "bip_label_4",
+        *[f"bip_label_{i}" for i in range(BIP_CLASSES)],
     ]
     result = add_labels(df).with_row_index("row_idx").select(labels).lazy()
     for path in paths.values():
@@ -62,7 +63,7 @@ def assemble_base_probabilities(df, paths, output):
     probability_columns = [
         f"{name}_prob_{i}" if name == "bip" else f"{name}_prob"
         for name in paths
-        for i in ([0, 1, 2, 3, 4] if name == "bip" else [0])
+        for i in (range(BIP_CLASSES) if name == "bip" else [0])
     ]
     output.parent.mkdir(parents=True, exist_ok=True)
     (
@@ -129,7 +130,11 @@ def outcome_loader(df, batch_size=4096, workers=4):
 
 def write_outcome_probabilities(df, name, model, path):
     loader = outcome_loader(df)
-    columns = [f"bip_prob_{i}" for i in range(5)] if name == "bip" else [f"{name}_prob"]
+    columns = (
+        [f"bip_prob_{i}" for i in range(BIP_CLASSES)]
+        if name == "bip"
+        else [f"{name}_prob"]
+    )
 
     def batches():
         model.eval()
@@ -159,7 +164,7 @@ def write_outcome_probabilities(df, name, model, path):
 
 def write_ball_probabilities(df, path):
     loader = DataLoader(PitchData(df), batch_size=8192, shuffle=False)
-    model = load_strike_prob(load_config("config/prob/strike_prob.yml"))
+    model = load_ball_prob(load_config("config/prob/ball_prob.yml"))
 
     def batches():
         with torch.no_grad():
@@ -170,10 +175,15 @@ def write_ball_probabilities(df, path):
     write_batches(path, batches())
 
 
-def generate_dataset():
-    df = pl.read_parquet("data/pitch/pitch_exp.parquet").with_columns(
-        pl.col("kmu").list.slice(0, 10)
+def load_data():
+    return pl.read_parquet("data/pitch/pitch_exp.parquet").with_columns(
+        pl.col("kmu").list.slice(0, 10),
+        pl.col("bipArr").list.slice(0, BIP_CLASSES),
     )
+
+
+def generate_dataset():
+    df = load_data()
     paths = {
         "swing": output_dir / "swing_probs.parquet",
         "ball": output_dir / "ball_probs.parquet",
@@ -189,7 +199,7 @@ def generate_dataset():
         )
         model = load_outcome(
             cfg,
-            output_dim=5 if name == "bip" else 1,
+            output_dim=BIP_CLASSES if name == "bip" else 1,
             n_pitcher_seasons=df["pitcher_year"].n_unique(),
             n_batter_seasons=df["batter_year"].n_unique(),
         )

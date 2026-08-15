@@ -1,24 +1,7 @@
 import polars as pl
-import torch
 
-from src.embeddings.expectation.modules.utils import repertoire_mask
-from src.sequencing.module.pitch_value import _load_data
-from src.sequencing.module.utils import (
-    build_outcome_batch,
-    compute_expectation,
-    compute_run_values,
-    device,
-    generate_cvae_samples,
-    get_pitcher_repertoire,
-    load_cvae,
-    load_expectation,
-    load_outcome,
-    load_strike_prob,
-    lookup_player,
-    run_outcome_models,
-    sample_prior_pitches,
-)
-from src.utils.modeling.config import load_config
+from src.sequencing.module.inference import SequencingEngine
+from src.sequencing.module.utils import get_pitcher_repertoire, lookup_player
 
 
 def optimal_pitch(
@@ -29,133 +12,33 @@ def optimal_pitch(
     batter_year,
     prior_sequence=None,
 ):
-    inf_cfg = load_config("config/test/pitch_sequencing.yml")["inference"]
-    n_samples = inf_cfg["n_cvae_samples"]
-    temperature = inf_cfg["temperature"]
-    hbp_prob = inf_cfg["hbp_prob"]
-    game_year = inf_cfg["game_year"]
-
-    df = pl.read_parquet(pitch_map)
-
-    n_pitcher_seasons = df["pitcher_year"].n_unique()
-    n_batter_seasons = df["batter_year"].n_unique()
-    n_pitches = df["pitch_name"].n_unique()
-    n_pitches_cvae = df["pitch_name"].n_unique()
-    max_len = df.group_by("pitchBatter").len().get_column("len").max()
-
-    pitcher_id_year = lookup_player(
-        df, pitcher, pitcher_year, "pitcher_name", "pitcher_year"
-    )
-    batter_id_year = lookup_player(
-        df, batter, batter_year, "batter_name", "batter_year"
-    )
-
-    repertoire = get_pitcher_repertoire(df, pitcher_id_year)
-
-    if not repertoire:
-        raise ValueError(
-            f"Pitcher '{pitcher}' ({pitcher_year}) has no pitch repertoire."
-        )
-
-    rep_mask = repertoire_mask(df, n_pitcher_seasons, n_pitches).to(device)
-
-    cvae = load_cvae(
-        load_config("config/embed/cvae.yml"), n_pitcher_seasons, n_pitches_cvae
-    )
-    batter_exp = load_expectation(
-        load_config("config/embed/expectation.yml"),
-        n_pitcher_seasons,
-        n_batter_seasons,
-        n_pitches,
-        max_len,
-    )
-    swing_model = load_outcome(
-        load_config("config/prob/swing_prob.yml"),
-        1,
-        n_pitcher_seasons,
-        n_batter_seasons,
-    )
-    whiff_model = load_outcome(
-        load_config("config/prob/whiff_prob.yml"),
-        1,
-        n_pitcher_seasons,
-        n_batter_seasons,
-    )
-    foul_model = load_outcome(
-        load_config("config/prob/foul_prob.yml"), 1, n_pitcher_seasons, n_batter_seasons
-    )
-    bip_model = load_outcome(
-        load_config("config/prob/bip_type.yml"), 5, n_pitcher_seasons, n_batter_seasons
-    )
-    strike_model = load_strike_prob(load_config("config/prob/strike_prob.yml"))
-
-    _load_data()
-
-    prior = None
-    prior_info = None
-    count_str = "0-0"
-    count_arr = 0
-
-    if prior_sequence:
-        prior, count_str, count_arr = sample_prior_pitches(
-            df, strike_model, prior_sequence
-        )
-        prior["pitcher_id"] = pitcher_id_year
-        prior["batter_id"] = batter_id_year
-        prior_info = {
-            "pitch_type": prior["pitch_type"],
-            "description": prior["description"],
-            "counts": [
-                dict(zip(["balls", "strikes"], divmod(c, 3)))
-                for c in prior["count"].tolist()
-            ],
+    engine = SequencingEngine(pitch_map)
+    evaluation = engine.evaluate(
+        {
+            "pitcher": pitcher,
+            "pitcher_year": pitcher_year,
+            "batter": batter,
+            "batter_year": batter_year,
+            "prior_sequence": prior_sequence,
         }
-
-    prior_exp, candidate_exp = compute_expectation(
-        batter_exp, prior, rep_mask, pitcher_id_year, batter_id_year
     )
 
-    results = {}
+    results = {
+        pitch_type: float(run_values.mean())
+        for pitch_type, run_values in evaluation.items()
+        if pitch_type not in {"probs", "prior_info", "count_str", "pitch_labels"}
+    }
     probs = {}
-    for pitch_type in repertoire:
-        candidates = generate_cvae_samples(
-            cvae, pitcher_id_year, pitch_type, n_samples, temperature
-        )
-        batch = build_outcome_batch(
-            prior,
-            candidates,
-            prior_exp,
-            candidate_exp,
-            pitcher_id_year,
-            batter_id_year,
-            count_arr,
-        )
-        swing_prob, whiff_prob, foul_prob, bip_probs = run_outcome_models(
-            swing_model, whiff_model, foul_model, bip_model, batch
-        )
-        with torch.no_grad():
-            strike_logits = strike_model(candidates).squeeze(-1)
-            strike_probs = 1.0 - torch.sigmoid(strike_logits)
-        run_values = compute_run_values(
-            swing_prob,
-            whiff_prob,
-            foul_prob,
-            bip_probs,
-            count_str,
-            game_year,
-            hbp_prob,
-            strike_probs,
-        )
-        results[pitch_type] = float(run_values.mean())
+    for pitch_type, pitch_probs in evaluation["probs"].items():
         probs[pitch_type] = {
-            "swing": float(swing_prob.mean()),
-            "whiff": float(whiff_prob.mean()),
-            "foul": float(foul_prob.mean()),
-            "strike": float(strike_probs.mean()),
-            "bip": [float(b) for b in bip_probs.mean(dim=0)],
+            "swing": float(pitch_probs["swing"].mean()),
+            "whiff": float(pitch_probs["whiff"].mean()),
+            "foul": float(pitch_probs["foul"].mean()),
+            "ball": float(pitch_probs["ball"].mean()),
+            "bip": [float(b) for b in pitch_probs["bip"].mean(axis=0)],
         }
 
-    return results, prior_info, count_str, probs
+    return results, evaluation["prior_info"], evaluation["count_str"], probs
 
 
 def build_prior_sequence_tui(df, pitcher, pitcher_year, batter, batter_year):
@@ -295,8 +178,8 @@ if __name__ == "__main__":
     best_probs = probs[best[0]]
     print(f"\nBest: {best_name} ({best[1]:.4f})")
     print(
-        f"  Swing: {best_probs['swing']:.4f}  |  Whiff: {best_probs['whiff']:.4f}  |  Foul: {best_probs['foul']:.4f}  |  Strike: {best_probs['strike']:.4f}"
+        f"  Swing: {best_probs['swing']:.4f}  |  Whiff: {best_probs['whiff']:.4f}  |  Foul: {best_probs['foul']:.4f}  |  Ball: {best_probs['ball']:.4f}"
     )
     print(
-        f"  BIP:   LD {best_probs['bip'][2]:.4f}  |  GB {best_probs['bip'][1]:.4f}  |  FB {best_probs['bip'][0]:.4f}  |  Popup {best_probs['bip'][3]:.4f}"
+        f"  BIP:   LD {best_probs['bip'][1]:.4f}  |  GB {best_probs['bip'][2]:.4f}  |  FB {best_probs['bip'][0]:.4f}  |  Popup {best_probs['bip'][3]:.4f}"
     )

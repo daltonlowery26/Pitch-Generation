@@ -2,6 +2,6 @@ data:
   pitch_map: data/pitch/pitch_exp.parquet
 inference:
   n_cvae_samples: 5000
-  temperature: 3.0
+  temperature: 5.0
   hbp_prob: 0.008
   game_year: 2025

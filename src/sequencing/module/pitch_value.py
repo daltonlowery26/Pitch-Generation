@@ -37,7 +37,7 @@ def pitch_value(
     gb_prob,
     popup_prob,
     hbp_prob,
-    strike_prob,
+    ball_prob,
 ):
 
     balls, strikes = (int(x) for x in count.split("-"))
@@ -64,7 +64,7 @@ def pitch_value(
             & (pl.col("transition") == transition)
         )
         if result.is_empty():
-            return default
+            raise ValueError("Impossible Transition")
         return result["rv"][0]
 
     if_strike_val = _lookup_transition("strike", k_value)
@@ -72,8 +72,7 @@ def pitch_value(
     if_foul_val = _lookup_transition("foul", np.nan)
 
     takeprob = 1 - swing_prob
-    ballprob = 1 - strike_prob
-    takevalue = strike_prob * if_strike_val + ballprob * if_ball_val
+    takevalue = (1 - ball_prob) * if_strike_val + ball_prob * if_ball_val
     take_branch = (takeprob - hbp_prob) * takevalue + hbp_prob * bb_value
 
     whiffvalue = whiff_prob * if_strike_val

@@ -97,7 +97,7 @@ def test_aggregate_bip_probs_ignores_fifth_model_class():
     assert aggregated[0].tolist() == pytest.approx([0.1, 0.3, 0.2, 0.4])
 
 
-def test_compute_run_values_passes_four_class_bip_probabilities_to_pitch_value(
+def test_compute_run_values_passes_ball_probability_and_four_class_bip_probabilities(
     monkeypatch,
 ):
     calls = []
@@ -115,10 +115,11 @@ def test_compute_run_values_passes_four_class_bip_probabilities_to_pitch_value(
         "1-2",
         2024,
         0.01,
-        torch.tensor([0.6]),
+        ball_probs=torch.tensor([0.6]),
     )
 
     assert run_values.tolist() == [1.0]
+    assert calls[0]["ball_prob"] == pytest.approx(0.6)
     assert calls[0]["fb_prob"] == pytest.approx(0.1)
     assert calls[0]["ld_prob"] == pytest.approx(0.3)
     assert calls[0]["gb_prob"] == pytest.approx(0.2)
@@ -201,6 +202,8 @@ def test_score_pitch_candidates_returns_state_conditioned_candidates(monkeypatch
     assert result["candidates"] is candidates
     assert result["run_values"].tolist() == list(range(10))
     assert result["probs"]["swing"].shape == (10,)
+    assert result["probs"]["ball"].tolist() == pytest.approx([0.5] * 10)
+    assert "strike" not in result["probs"]
     assert result["probs"]["bip"].shape == (10, 4)
     assert result["probs"]["bip"][0].tolist() == pytest.approx([0.25, 0.25, 0.25, 0.25])
     assert calls["generate"][1]["generator"] is generator
@@ -264,7 +267,7 @@ def test_simulate_optimal_usage_samples_two_history_preserving_at_bats(
                     "swing": np.zeros(10),
                     "whiff": np.zeros(10),
                     "foul": np.zeros(10),
-                    "strike": np.ones(10),
+                    "ball": np.ones(10),
                     "bip": np.tile([1.0, 0.0, 0.0, 0.0], (10, 1)),
                 },
                 "run_values": np.full(10, run_value),
@@ -280,23 +283,23 @@ def test_simulate_optimal_usage_samples_two_history_preserving_at_bats(
         seed=7,
     )
 
-    assert result["pitch_counts"] == {10: 0, 20: 18}
+    assert result["pitch_counts"] == {10: 0, 20: 24}
     assert result["pitch_shares"] == {10: 0.0, 20: 1.0}
-    assert result["outcome_counts"]["called_strike"] == 18
-    assert result["terminal_counts"]["strikeout"] == 6
-    assert len(calls) == 36
+    assert result["outcome_counts"]["ball"] == 24
+    assert result["terminal_counts"]["walk"] == 6
+    assert len(calls) == 48
     assert {call["pitch_type"] for call in calls} == {10, 20}
     assert {call["current_atbat"] for call in calls} == {0, 1}
     assert any(call["prior"] is not None for call in calls)
     assert calls[0]["prior"] is None
-    assert calls[18]["current_count_str"] == "0-0"
-    assert calls[18]["current_atbat"] == 1
+    assert calls[24]["current_count_str"] == "0-0"
+    assert calls[24]["current_atbat"] == 1
     for batter_id in {call["batter_id"] for call in calls}:
         batter_calls = [call for call in calls if call["batter_id"] == batter_id]
         first_atbat = next(call for call in batter_calls if call["current_atbat"] == 0)
         second_atbat = next(call for call in batter_calls if call["current_atbat"] == 1)
         assert first_atbat["prior"] is None
-        assert second_atbat["prior"]["seq_len"] == 3
+        assert second_atbat["prior"]["seq_len"] == 4
 
 
 def test_simulate_optimal_usage_uses_target_observed_repertoire_for_pooled_id(
@@ -328,7 +331,7 @@ def test_simulate_optimal_usage_uses_target_observed_repertoire_for_pooled_id(
                     "swing": np.zeros(10),
                     "whiff": np.zeros(10),
                     "foul": np.zeros(10),
-                    "strike": np.zeros(10),
+                    "ball": np.zeros(10),
                     "bip": np.tile([1.0, 0.0, 0.0, 0.0], (10, 1)),
                 },
                 "run_values": np.full(10, -1.0 if kwargs["pitch_type"] == 20 else 0.0),
@@ -340,7 +343,9 @@ def test_simulate_optimal_usage_uses_target_observed_repertoire_for_pooled_id(
 
     assert {call["pitcher_id"] for call in calls} == {0}
     assert {call["pitch_type"] for call in calls} == {10}
-    assert result["pitch_counts"] == {10: 8}
+    assert result["pitch_counts"] == {10: 6}
+    assert result["outcome_counts"]["called_strike"] == 6
+    assert result["terminal_counts"]["strikeout"] == 2
 
 
 def test_simulate_optimal_usage_selects_by_mean_and_uses_selected_candidate(
@@ -404,7 +409,7 @@ def test_simulate_optimal_usage_selects_by_mean_and_uses_selected_candidate(
                     "swing": np.ones(10),
                     "whiff": whiff,
                     "foul": np.zeros(10),
-                    "strike": np.zeros(10),
+                    "ball": np.zeros(10),
                     "bip": np.tile([1.0, 0.0, 0.0, 0.0], (10, 1)),
                 },
                 "run_values": run_values,
@@ -450,7 +455,7 @@ def test_simulate_optimal_usage_whiff_at_two_strikes_is_terminal(monkeypatch):
                     "swing": np.ones(10),
                     "whiff": np.ones(10),
                     "foul": np.zeros(10),
-                    "strike": np.zeros(10),
+                    "ball": np.zeros(10),
                     "bip": np.tile([1.0, 0.0, 0.0, 0.0], (10, 1)),
                 },
                 "run_values": np.zeros(10),
@@ -470,7 +475,7 @@ def test_simulate_optimal_usage_whiff_at_two_strikes_is_terminal(monkeypatch):
     }
 
 
-def test_simulate_optimal_usage_resolves_walks_and_counts_zero_use_pitches(
+def test_simulate_optimal_usage_resolves_called_strikes_and_counts_zero_use_pitches(
     monkeypatch,
 ):
     import polars as pl
@@ -497,7 +502,7 @@ def test_simulate_optimal_usage_resolves_walks_and_counts_zero_use_pitches(
                     "swing": np.zeros(10),
                     "whiff": np.zeros(10),
                     "foul": np.zeros(10),
-                    "strike": np.zeros(10),
+                    "ball": np.zeros(10),
                     "bip": np.tile([1.0, 0.0, 0.0, 0.0], (10, 1)),
                 },
                 "run_values": np.zeros(10),
@@ -506,10 +511,10 @@ def test_simulate_optimal_usage_resolves_walks_and_counts_zero_use_pitches(
     monkeypatch.setattr(usage, "SequencingEngine", FakeEngine)
     result = usage.simulate_optimal_usage(pitch_map, "P1", 2024, seed=7)
 
-    assert result["pitch_counts"] == {10: 8}
-    assert result["outcome_counts"]["ball"] == 8
-    assert result["terminal_counts"]["walk"] == 2
-    assert result["terminal_rates"]["walk"] == 1.0
+    assert result["pitch_counts"] == {10: 6}
+    assert result["outcome_counts"]["called_strike"] == 6
+    assert result["terminal_counts"]["strikeout"] == 2
+    assert result["terminal_rates"]["strikeout"] == 1.0
     assert result["pitcher"] == "P1"
     assert result["season"] == 2024
     assert set(result) == {
@@ -531,8 +536,8 @@ def test_simulate_optimal_usage_resolves_walks_and_counts_zero_use_pitches(
     assert "terminal_outcome_counts" not in result
     assert "terminal_outcome_rates" not in result
     assert result["terminal_counts"] == {
-        "strikeout": 0,
-        "walk": 2,
+        "strikeout": 2,
+        "walk": 0,
         "fb": 0,
         "ld": 0,
         "gb": 0,
@@ -542,11 +547,14 @@ def test_simulate_optimal_usage_resolves_walks_and_counts_zero_use_pitches(
     assert result["outcome_counts"]["ld"] == 0
     assert result["outcome_counts"]["gb"] == 0
     assert result["outcome_counts"]["popup"] == 0
-    assert result["outcome_rates"]["ball"] == result["outcome_counts"]["ball"] / 8
+    assert (
+        result["outcome_rates"]["called_strike"]
+        == result["outcome_counts"]["called_strike"] / 6
+    )
     for outcome, count in result["terminal_counts"].items():
         assert result["terminal_rates"][outcome] == count / 2
-    assert sum(result["pitch_counts"].values()) == result["n_pitches"] == 8
-    assert result["outcome_counts"]["swing"] + result["outcome_counts"]["take"] == 8
+    assert sum(result["pitch_counts"].values()) == result["n_pitches"] == 6
+    assert result["outcome_counts"]["swing"] + result["outcome_counts"]["take"] == 6
     assert (
         result["outcome_counts"]["called_strike"] + result["outcome_counts"]["ball"]
         == result["outcome_counts"]["take"]
@@ -588,7 +596,7 @@ def test_simulate_optimal_usage_samples_and_aggregates_popups(monkeypatch):
                     "swing": np.ones(10),
                     "whiff": np.zeros(10),
                     "foul": np.zeros(10),
-                    "strike": np.zeros(10),
+                    "ball": np.zeros(10),
                     "bip": np.tile([0.0, 0.0, 0.0, 1.0], (10, 1)),
                 },
                 "run_values": np.zeros(10),
@@ -637,7 +645,7 @@ def test_simulate_optimal_usage_keeps_two_strike_fouls_in_count(monkeypatch):
                     "swing": np.ones(10),
                     "whiff": np.zeros(10),
                     "foul": np.full(10, foul),
-                    "strike": np.zeros(10),
+                    "ball": np.zeros(10),
                     "bip": np.tile([1.0, 0.0, 0.0, 0.0], (10, 1)),
                 },
                 "run_values": np.zeros(10),
@@ -686,7 +694,7 @@ def test_simulate_optimal_usage_is_seeded_and_samples_opponents_with_replacement
                         "swing": np.array([0.0] * 5 + [1.0] * 5),
                         "whiff": np.ones(10),
                         "foul": np.zeros(10),
-                        "strike": np.zeros(10),
+                        "ball": np.zeros(10),
                         "bip": np.tile([1.0, 0.0, 0.0, 0.0], (10, 1)),
                     },
                     "run_values": np.zeros(10),
@@ -742,7 +750,7 @@ def test_simulate_optimal_usage_propagates_maximum_history_error(monkeypatch):
                     "swing": np.ones(10),
                     "whiff": np.zeros(10),
                     "foul": np.zeros(10),
-                    "strike": np.zeros(10),
+                    "ball": np.zeros(10),
                     "bip": np.tile([1.0, 0.0, 0.0, 0.0], (10, 1)),
                 },
                 "run_values": np.zeros(10),

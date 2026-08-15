@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+from src.outcome.modules.data.outcome_data import BIP_CLASSES
 from src.outcome.modules.models.mlp import MLP
 
 
@@ -12,7 +13,7 @@ class StackedCalibrator(nn.Module):
         self.ball = nn.Linear(dim, 1)
         self.whiff = nn.Linear(dim, 1)
         self.foul = nn.Linear(dim, 1)
-        self.bip = nn.Linear(dim, 5)
+        self.bip = nn.Linear(dim, BIP_CLASSES)
 
     def forward(self, probs):
         features = self.trunk(probs)

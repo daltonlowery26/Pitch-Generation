@@ -30,7 +30,7 @@ def plot_run_values(
         scenarios = list(scenarios)
 
     print(len(scenarios))
-    
+
     if not scenarios:
         raise ValueError("At least one scenario is required")
 
@@ -71,10 +71,16 @@ def plot_run_values(
     for axis in axes[len(scenarios) :]:
         axis.set_visible(False)
 
-    figure.tight_layout()
+    plt.tight_layout()
     plt.show()
     return figure
 
 
 if __name__ == "__main__":
-    plot_run_values(n_scenarios=3, pitcher='Warren, Will', pitcher_year=2025, batter='Duran, Jarren', batter_year=2025)
+    plot_run_values(
+        n_scenarios=3,
+        pitcher="Warren, Will",
+        pitcher_year=2025,
+        batter="Bregman, Alex",
+        batter_year=2025,
+    )

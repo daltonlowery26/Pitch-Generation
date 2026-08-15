@@ -5,9 +5,20 @@ import torch
 from sklearn.manifold import TSNE
 
 from src.embeddings.pitch.modules.cvae import CVAE
+from src.utils.modeling.config import load_config
 
 
-def plot(data, model, n_samples_per_type=200, temperature=1.0):
+def _select_target_pitcher(data, pitcher_name=None, year=None):
+    # select pitcher specified
+    if pitcher_name is not None:
+        selected = data.filter(pl.col("pitcher_name") == pitcher_name)
+        if year is not None:
+            selected = selected.filter(pl.col("game_year") == year)
+
+        counts = selected.group_by("pitcher_year").agg(pl.len().alias("n_pitches"))
+        return int(counts.sort("n_pitches", descending=True)["pitcher_year"].item(0))
+
+    # random selection
     pitcher_counts = (
         data.group_by("pitcher_year")
         .agg(pl.n_unique("pitch_name").alias("n_types"), pl.len().alias("n_pitches"))
@@ -32,18 +43,25 @@ def plot(data, model, n_samples_per_type=200, temperature=1.0):
         if len(pitcher_counts) > 0
         else data["pitcher_year"].unique().to_list()
     )
-    target_pitcher = int(np.random.choice(eligible))
+    return int(np.random.choice(eligible))
+
+
+def plot(
+    data,
+    model,
+    n_samples_per_type=200,
+    temperature=1.0,
+    pitcher_name=None,
+    year=None,
+):
+    target_pitcher = _select_target_pitcher(data, pitcher_name, year)
 
     pitcher_row = data.filter(pl.col("pitcher_year") == target_pitcher).head(1)
     pitcher_label = (
         f"{pitcher_row['pitcher_name'].item(0)} ({pitcher_row['game_year'].item(0)})"
     )
 
-    if len(pitcher_counts) == 0:
-        print(f"falling back to pitcher {pitcher_label}")
-    else:
-        print(f"using pitcher {pitcher_label}", flush=True)
-        print(pitcher_counts.head(5))
+    print(f"using pitcher {pitcher_label}", flush=True)
 
     pitcher_data = data.filter(pl.col("pitcher_year") == target_pitcher)
     type_counts = pitcher_data.group_by("pitch_name").len()
@@ -118,7 +136,7 @@ def plot(data, model, n_samples_per_type=200, temperature=1.0):
             marker="^",
             label=f"{pitch_name_to_str[pg]} (generated, n={mask.sum()})",
             alpha=0.5,
-            s=40,
+            s=100,
             edgecolors="white",
             linewidth=0.3,
         )
@@ -136,6 +154,8 @@ def plot(data, model, n_samples_per_type=200, temperature=1.0):
 
 
 if __name__ == "__main__":
+    arch = load_config("config/embed/cvae.yml")["arch"]
+
     features = [
         "hra",
         "vra",
@@ -169,21 +189,21 @@ if __name__ == "__main__":
     pitches = data["pitch_name"].n_unique()
 
     model = CVAE(
-        input_dim=10,
-        pitch_dim=16,
-        pitcher_dim=16,
-        h_dim=128,
-        latent_dim=6,
-        dropout=0.1,
-        n_layers=4,
+        input_dim=arch["input_dim"],
+        pitch_dim=arch["pitch_dim"],
+        pitcher_dim=arch["pitcher_dim"],
+        h_dim=arch["h_dim"],
+        latent_dim=arch["latent_dim"],
+        dropout=arch["dropout"],
+        n_layers=arch["n_layers"],
         n_pitchers=pitchers,
         n_pitches=pitches,
     )
 
-    sd = torch.load("weights/cvae_map.pth", map_location=torch.device("cpu"))
+    sd = torch.load("weights/embed/cvae_map.pth", map_location=torch.device("cpu"))
     sd = sd.get("model_state", sd)
     sd = {k.removeprefix("_orig_mod."): v for k, v in sd.items()}
     model.load_state_dict(sd)
     model.eval()
 
-    plot(data, model, temperature=3.0)
+    plot(data, model, temperature=3.0, pitcher_name="Skenes, Paul", year=2025)

@@ -5,23 +5,17 @@ import polars as pl
 import torch
 from torch.utils.data import DataLoader, Dataset, Subset
 
+from src.outcome.modules.data.outcome_data import BIP_CLASSES
+
 PROB_COLUMNS = [
     "swing_prob",
     "ball_prob",
     "whiff_prob",
     "foul_prob",
-    "bip_prob_0",
-    "bip_prob_1",
-    "bip_prob_2",
-    "bip_prob_3",
-    "bip_prob_4",
+    *[f"bip_prob_{i}" for i in range(BIP_CLASSES)],
 ]
 BIP_COLUMNS = [
-    "bip_label_0",
-    "bip_label_1",
-    "bip_label_2",
-    "bip_label_3",
-    "bip_label_4",
+    *[f"bip_label_{i}" for i in range(BIP_CLASSES)],
 ]
 
 

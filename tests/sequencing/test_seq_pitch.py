@@ -24,7 +24,7 @@ def test_optimal_pitch_returns_bip_probabilities_in_canonical_order(monkeypatch)
                         "swing": np.array([0.2, 0.4]),
                         "whiff": np.array([0.1, 0.3]),
                         "foul": np.array([0.05, 0.15]),
-                        "strike": np.array([0.6, 0.8]),
+                        "ball": np.array([0.6, 0.8]),
                         "bip": canonical_bip_probs,
                     }
                 },
@@ -44,3 +44,4 @@ def test_optimal_pitch_returns_bip_probabilities_in_canonical_order(monkeypatch)
     )
 
     assert probs["FF"]["bip"] == pytest.approx([0.30, 0.275, 0.175, 0.25])
+    assert probs["FF"]["ball"] == pytest.approx(0.7)

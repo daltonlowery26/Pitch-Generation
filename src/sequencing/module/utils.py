@@ -5,6 +5,7 @@ import torch
 from src.embeddings.expectation.modules.transformer import BatterExp
 from src.embeddings.expectation.modules.utils import inferForward
 from src.embeddings.pitch.modules.cvae import CVAE
+from src.outcome.modules.data.outcome_data import BIP_CLASSES
 from src.outcome.modules.models.mlp import MLP
 from src.outcome.modules.models.transformer import Transformer
 from src.sequencing.module.pitch_value import pitch_value
@@ -86,11 +87,9 @@ def load_outcome(cfg, output_dim, n_pitcher_seasons, n_batter_seasons):
     return model
 
 
-def load_strike_prob(cfg):
+def load_ball_prob(cfg):
     model = MLP(**cfg["arch"]).to(device)
-    ckpt = torch.load(
-        "weights/probs/strike_prob", map_location=device, weights_only=True
-    )
+    ckpt = torch.load(cfg["weight_path"], map_location=device, weights_only=True)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
     return model
@@ -128,10 +127,11 @@ def parse_count(count_str):
     return count_str, count_arr
 
 
-# draw from previous pitches with the probablity of strike prob
-BALL_RESULTS = {"ball", "blocked_ball", "intent_ball"}
+# draw from previous pitches with the probability of a ball
+BALL_RESULTS = {"ball", "blocked_ball", "intent_ball", "pitchout"}
 STRIKE_RESULTS = {
     "called_strike",
+    "missed_bunt",
     "swinging_strike",
     "swinging_strike_blocked",
     "foul",
@@ -141,7 +141,7 @@ STRIKE_RESULTS = {
 }
 
 
-def sample_prior_pitches(df, strike_model, sequence):
+def sample_prior_pitches(df, ball_model, sequence, current_atbat=0):
     balls = 0
     strikes = 0
     pitch_embs = []
@@ -168,7 +168,7 @@ def sample_prior_pitches(df, strike_model, sequence):
         )
 
         with torch.no_grad():
-            logits = strike_model(features).squeeze(-1)
+            logits = ball_model(features).squeeze(-1)
             ball_probs = torch.sigmoid(logits)
 
         weights = ball_probs if result == "ball" else (1.0 - ball_probs)
@@ -192,7 +192,7 @@ def sample_prior_pitches(df, strike_model, sequence):
     prior = {
         "pitchEmb": np.array(pitch_embs, dtype=np.float32),
         "count": np.array(counts, dtype=np.int32),
-        "atbat": np.zeros(seq_len, dtype=np.int32),
+        "atbat": np.full(seq_len, current_atbat, dtype=np.int32),
         "pitch_type": pitch_types,
         "description": descriptions,
         "current_count": final_count_arr,
@@ -204,11 +204,11 @@ def sample_prior_pitches(df, strike_model, sequence):
 
 
 # sample from cvae
-def generate_cvae_samples(cvae, pitcher_id, pitch_type, n, temperature):
+def generate_cvae_samples(cvae, pitcher_id, pitch_type, n, temperature, generator=None):
     pitcher_emb = cvae.pitcherEmbed(torch.tensor([pitcher_id], device=device))
     pitch_emb = cvae.pitchEmbed(torch.tensor([pitch_type], device=device))
     c = torch.cat([pitcher_emb, pitch_emb], dim=-1)
-    return cvae.generate(c, n=n, temperature=temperature)
+    return cvae.generate(c, n=n, temperature=temperature, generator=generator)
 
 
 # batter expectation in current oun
@@ -262,6 +262,7 @@ def build_outcome_batch(
     pitcher_id_val,
     batter_id_val,
     current_count_arr,
+    current_atbat=0,
 ):
     B = candidates.shape[0]
 
@@ -289,7 +290,7 @@ def build_outcome_batch(
 
     if prior is None or prior["seq_len"] == 0:
         count = torch.full((B, 1), current_count_arr, device=device)
-        atbat = torch.full((B, 1), 0, device=device)
+        atbat = torch.full((B, 1), current_atbat, device=device)
     else:
         prior_count = torch.from_numpy(prior["count"]).to(device)
         count_list = [
@@ -298,9 +299,8 @@ def build_outcome_batch(
         ]
         count = torch.stack(count_list)
         prior_atbat = torch.from_numpy(prior["atbat"]).to(device)
-        atbat_last = prior_atbat[-1]
         atbat_list = [
-            torch.cat([prior_atbat, torch.tensor([atbat_last], device=device)])
+            torch.cat([prior_atbat, torch.tensor([current_atbat], device=device)])
             for _ in range(B)
         ]
         atbat = torch.stack(atbat_list)
@@ -310,6 +310,18 @@ def build_outcome_batch(
     lengths = torch.full((B,), C, device=device, dtype=torch.long)
 
     return pitch_emb, exp_emb, pitcher_id, batter_id, atbat, count, lengths
+
+
+def aggregate_bip_probs(bip_probs):
+    if bip_probs.shape[-1] < BIP_CLASSES:
+        raise ValueError("BIP probabilities must contain at least four classes")
+
+    bip_probs = bip_probs[..., :BIP_CLASSES]
+    # Reorder model classes 0 through 3 to the canonical [FB, LD, GB, popup].
+    return torch.stack(
+        [bip_probs[..., 0], bip_probs[..., 2], bip_probs[..., 1], bip_probs[..., 3]],
+        dim=-1,
+    )
 
 
 # outcomes
@@ -348,12 +360,12 @@ def compute_run_values(
     count_str,
     game_year,
     hbp_prob,
-    strike_probs,
+    ball_probs,
 ):
     n = swing_prob.shape[0]
     rv = np.empty(n, dtype=np.float32)
 
-    bip_probs_np = bip_probs.cpu().numpy()
+    bip_probs_np = aggregate_bip_probs(bip_probs).cpu().numpy()
 
     for i in range(n):
         rv[i] = pitch_value(
@@ -363,11 +375,11 @@ def compute_run_values(
             foul_prob=foul_prob[i].item(),
             swing_prob=swing_prob[i].item(),
             fb_prob=bip_probs_np[i, 0],
-            gb_prob=bip_probs_np[i, 1],
-            ld_prob=bip_probs_np[i, 2],
+            gb_prob=bip_probs_np[i, 2],
+            ld_prob=bip_probs_np[i, 1],
             popup_prob=bip_probs_np[i, 3],
             hbp_prob=hbp_prob,
-            strike_prob=strike_probs[i].item(),
+            ball_prob=ball_probs[i].item(),
         )
 
     return rv
