@@ -3,7 +3,7 @@ import pytest
 
 from src.sequencing.module import pitch_value
 
-
+# TODO -- expand test coverage here
 def test_pitch_value_uses_ball_probability_for_transition_weights(monkeypatch):
     bipvalue = pl.DataFrame(
         {

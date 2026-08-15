@@ -16,7 +16,9 @@ def test_optimal_pitch_returns_bip_probabilities_in_canonical_order(monkeypatch)
         def __init__(self, _pitch_map):
             pass
 
-        def evaluate(self, _request):
+        def evaluate(self, request, *, sample_sequence=False):
+            assert sample_sequence is True
+            assert request["prior_sequence"] == [(1, "strike")]
             return {
                 "FF": np.array([0.0, 1.0]),
                 "probs": {
@@ -41,6 +43,7 @@ def test_optimal_pitch_returns_bip_probabilities_in_canonical_order(monkeypatch)
         pitcher_year=2024,
         batter="B1",
         batter_year=2024,
+        prior_sequence=[(1, "strike")],
     )
 
     assert probs["FF"]["bip"] == pytest.approx([0.30, 0.275, 0.175, 0.25])

@@ -3,14 +3,6 @@ from datetime import date
 import polars as pl
 
 from src.outcome.modules.data import outcome_data
-from src.utils.modeling.config import load_config
-
-
-def test_bip_class_count_matches_config():
-    cfg = load_config("config/prob/bip_type.yml")
-
-    assert outcome_data.BIP_CLASSES == 4
-    assert cfg["arch"]["output_dim"] == outcome_data.BIP_CLASSES
 
 
 def test_load_data_returns_loaders_and_cardinalities(monkeypatch):

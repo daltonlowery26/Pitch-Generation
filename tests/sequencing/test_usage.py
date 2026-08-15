@@ -33,8 +33,12 @@ def test_cvae_generation_is_repeatable_with_a_torch_generator():
 def test_generate_cvae_samples_forwards_generator():
     class FakeCVAE:
         def __init__(self):
-            self.pitcherEmbed = lambda ids: torch.ones(ids.shape[0], 2)
-            self.pitchEmbed = lambda ids: torch.ones(ids.shape[0], 3)
+            self.pitcherEmbed = lambda ids: torch.stack(
+                [ids.float(), ids.float() + 1], dim=-1
+            )
+            self.pitchEmbed = lambda ids: torch.stack(
+                [ids.float() + 10, ids.float() + 11, ids.float() + 12], dim=-1
+            )
             self.calls = []
 
         def generate(self, condition, **kwargs):
@@ -46,7 +50,31 @@ def test_generate_cvae_samples_forwards_generator():
 
     utils.generate_cvae_samples(model, 1, 2, 10, 1.5, generator=generator)
 
+    assert torch.equal(
+        model.calls[0][0],
+        torch.tensor([[1.0, 2.0, 12.0, 13.0, 14.0]]),
+    )
     assert model.calls[0][1]["generator"] is generator
+    assert model.calls[0][1]["n"] == 10
+    assert model.calls[0][1]["temperature"] == 1.5
+
+
+def test_usage_generator_uses_model_device():
+    model = CVAE(
+        input_dim=3,
+        pitcher_dim=2,
+        pitch_dim=2,
+        h_dim=4,
+        latent_dim=2,
+        dropout=0.0,
+        n_layers=1,
+        n_pitchers=2,
+        n_pitches=2,
+    )
+
+    generator = usage._make_torch_generator(model, seed=7)
+
+    assert generator.device == torch.device("cpu")
 
 
 def test_build_outcome_batch_uses_explicit_current_atbat():
